@@ -1,5 +1,10 @@
 # 📈 avanza-research-terminal
 
+[![CI](https://github.com/Orimia/avanza-research-terminal/actions/workflows/ci.yml/badge.svg)](https://github.com/Orimia/avanza-research-terminal/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
+![Tests](https://img.shields.io/badge/tests-80%20passing-brightgreen)
+
 A **local stock research terminal** that screens Swedish, EU and US equities, ranks
 opportunities, analyzes your existing holdings, and produces concise institutional-style
 **BUY / HOLD / TRIM / SELL / AVOID** decision memos — so you can place **whole-share orders
@@ -15,6 +20,20 @@ manually in Avanza yourself**.
 
 It runs **fully on deterministic mock data with zero API keys** so you can explore the whole
 UI immediately. Real data providers activate automatically when you add keys to `.env`.
+
+---
+
+## Engineering highlights
+
+- **Deterministic, testable core** — scoring, sizing and decisions are pure functions with
+  **80 offline tests**; no LLM in the critical path. Missing data stays `None`, never invented.
+- **Clean provider abstraction** — keyed sources, keyless Yahoo, and a deterministic mock all
+  sit behind one interface; a real symbol's missing field is never back-filled with a mock number.
+- **Always-on engine** with **state-based de-duplication** — you get *new* signals, not spam.
+- **Two asset classes, two models** — equities use a fundamentals composite; crypto uses a
+  separate trend / momentum / quality-tier model, **isolated so it can't distort equity math**.
+- **Hard safety guardrails** — a test fails the build if any source file contains
+  order-execution or credential-capture identifiers. Research-only, by construction.
 
 ---
 
@@ -177,7 +196,7 @@ Exchanges: `ST` (Stockholm), `US`, `EU`.
 
 ## Dashboard pages
 
-Dark "research-terminal" theme. Pages:
+**Apple-inspired dark theme** with real-button navigation and SF Pro typography. Pages:
 
 1. **Overview / Today** — glanceable home: market-open chips (SE/EU/US), engine status,
    today's "what to do" (BUY/TRIM/SELL signals), latest-signal feed, holdings snapshot,
@@ -185,13 +204,16 @@ Dark "research-terminal" theme. Pages:
 2. **Alerts & Engine** — live signal feed (filter by severity/type/symbol), engine health,
    **run-a-scan-now** with message preview.
 3. **Daily Opportunities** — ranked BUY / WATCH / AVOID, filters, daily buy-budget tracker.
-4. **Portfolio Review** — per-holding decision, weakest holding, replacements, opportunity cost.
-5. **Stock Deep Dive** — full memo for any ticker (dark candlestick, score bars, clickable
+4. **Crypto Signals** — a discovery screener plus thesis-aware signals on a tracked crypto
+   account: BTC-only-new-money rule, core vs. speculative-tail handling, concentration and
+   staking flags, dust suppression — all on a model separate from the equity thesis.
+5. **Portfolio Review** — per-holding decision, weakest holding, replacements, opportunity cost.
+6. **Stock Deep Dive** — full memo for any ticker (dark candlestick, score bars, clickable
    news, add-to-watchlist, save memo).
-6. **Risk Dashboard** — country/currency/sector exposure, concentration (HHI), vol & drawdown
+7. **Risk Dashboard** — country/currency/sector exposure, concentration (HHI), vol & drawdown
    proxies, portfolio-weighted stress test.
-7. **Backtest** — momentum backtest + walk-forward, with survivorship-bias warnings.
-8. **Settings** — API status, **Notifications setup** (test-alert + chat-id finder), network
+8. **Backtest** — momentum backtest + walk-forward, with survivorship-bias warnings.
+9. **Settings** — API status, **Notifications setup** (test-alert + chat-id finder), network
    audit log, scoring weights, risk limits, watchlist editor.
 
 ---

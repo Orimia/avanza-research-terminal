@@ -32,6 +32,8 @@ env/
 .streamlit/secrets.toml
 # claude-flow CLI working state (routing/insights) — not project code
 .claude-flow/
+# local editor/agent config (machine-specific)
+.claude/
 
 # OS / editor
 .DS_Store
