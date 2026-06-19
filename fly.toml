@@ -1,0 +1,29 @@
+# Fly.io deploy for the always-on engine (a worker — no inbound HTTP).
+# Setup:
+#   fly launch --no-deploy          # creates the app (pick a unique name)
+#   fly volumes create art_data --size 1 --region arn
+#   fly secrets set TELEGRAM_BOT_TOKEN=... TELEGRAM_CHAT_ID=... \
+#                   ALERT_EMAIL_SMTP_HOST=... ALERT_EMAIL_USERNAME=... \
+#                   ALERT_EMAIL_PASSWORD=... ALERT_EMAIL_TO=...
+#   fly deploy
+app = "avanza-research-terminal"
+primary_region = "arn"   # Stockholm
+
+[build]
+  dockerfile = "Dockerfile"
+
+[processes]
+  engine = "python -m src.engine.scheduler"
+
+[mounts]
+  source = "art_data"
+  destination = "/app/data"
+
+[env]
+  ALLOW_NETWORK = "true"
+  TERMINAL_DB_PATH = "/app/data/terminal.db"
+
+# A single small always-on machine is enough for a personal engine.
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

@@ -1,0 +1,8 @@
+ticker,exchange,shares,average_cost,currency,current_price_optional,sector,notes
+VOLV-B,ST,40,245.0,SEK,,Industrials,Core Nordic industrial
+INVE-B,ST,25,265.0,SEK,,Financials,Holding company / compounder
+AZN,ST,15,1350.0,SEK,,Healthcare,Pharma anchor
+NVDA,US,8,95.0,USD,,Technology,AI infrastructure
+ASML,EU,3,720.0,EUR,,Technology,Semi cap equipment
+NOVO-B,ST,30,820.0,SEK,,Healthcare,GLP-1 leader
+EVO,ST,18,1200.0,SEK,,Consumer,Live casino — high beta

@@ -1,0 +1,39 @@
+# Secrets — never commit
+.env
+*.env
+!.env.example
+
+# Local database, backups & caches
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+data/backups/
+*.db-journal
+
+# Logs
+logs/*.log
+logs/*.jsonl
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# Tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.streamlit/secrets.toml
+# claude-flow CLI working state (routing/insights) — not project code
+.claude-flow/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

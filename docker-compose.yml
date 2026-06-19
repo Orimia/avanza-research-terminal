@@ -1,0 +1,36 @@
+# Local/cloud always-on stack: the engine (24/7 scanner + alerts) plus the
+# dashboard, sharing one SQLite DB so the dashboard shows the engine's alerts.
+#
+#   cp .env.example .env   # fill in Telegram/email keys
+#   docker compose up -d --build
+#   # dashboard at http://localhost:8501 ; engine pushes alerts on its own
+services:
+  engine:
+    build: .
+    env_file: .env
+    environment:
+      - ALLOW_NETWORK=true
+      - TERMINAL_DB_PATH=/app/data/terminal.db
+    volumes:
+      - ./data:/app/data
+      - ./config.yaml:/app/config.yaml:ro
+      - ./logs:/app/logs
+    restart: unless-stopped
+
+  dashboard:
+    build: .
+    command: >
+      streamlit run src/dashboard/app.py
+      --server.port 8501 --server.address 0.0.0.0
+      --server.headless true --browser.gatherUsageStats false
+    env_file: .env
+    environment:
+      - ALLOW_NETWORK=true
+      - TERMINAL_DB_PATH=/app/data/terminal.db
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data:/app/data
+      - ./config.yaml:/app/config.yaml:ro
+      - ./logs:/app/logs
+    restart: unless-stopped

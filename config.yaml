@@ -1,0 +1,175 @@
+# =============================================================================
+# avanza-research-terminal — configuration
+# Everything here can be edited without touching code. The Settings page in the
+# dashboard reads these values live.
+# =============================================================================
+
+app:
+  base_currency: SEK
+  # Approximate total portfolio value in SEK used for position sizing when a
+  # portfolio CSV is not loaded. Example default — set your own in Settings.
+  portfolio_value_sek: 100000
+  disclaimer: "This is not personal financial advice."
+  # Automatic, rotating SQLite backups taken on every portfolio/crypto save
+  # (written to data/backups/). Protects your holdings, decisions and signal
+  # history with zero input. Set false to disable; keep = how many to retain.
+  auto_backup: true
+  auto_backup_keep: 10
+  # Hard guardrails — these are assertions about what this app must never do.
+  guardrails:
+    broker_login: false          # never
+    place_orders: false          # never
+    store_broker_credentials: false  # never
+    whole_shares_only: true
+    options_enabled: false
+    certificates_enabled: false  # disabled by default
+
+data:
+  # Force mock data even if API keys exist (useful offline). Network calls are
+  # also globally gated by ALLOW_NETWORK in .env.
+  force_mock: false
+  cache_ttl_minutes: 60
+  price_history_days: 400
+  # Provider preference order for each region (first available wins; others
+  # may be merged for coverage). 'yahoo' is the keyless real source (yfinance)
+  # used when no paid key is set; 'mock' is the final offline fallback.
+  providers:
+    nordic: [borsdata, yahoo, mock]
+    eu: [eodhd, finnhub, yahoo, mock]
+    us: [eodhd, finnhub, yahoo, mock]
+    crypto: [yahoo, mock]            # coins are keyless via Yahoo (<SYM>-USD)
+  fx:
+    pairs: [USDSEK, EURSEK, DKKSEK, NOKSEK, GBPSEK, CHFSEK]
+    # Static fallback rates used when no live FX is available (approximate;
+    # live rates override these when network/keys allow).
+    static:
+      USDSEK: 10.55
+      EURSEK: 11.30
+      DKKSEK: 1.52
+      NOKSEK: 0.95
+      GBPSEK: 13.30
+      CHFSEK: 11.80
+      SEKSEK: 1.0
+
+# Composite scoring weights. Must be the six factors below; they are
+# renormalised automatically over whichever sub-scores have data.
+scoring:
+  weights:
+    quality: 0.20
+    growth: 0.20
+    momentum: 0.20
+    valuation: 0.15
+    catalyst: 0.15
+    risk: 0.10
+  # Liquidity is scored separately and used as a gate/penalty, not a weight.
+  liquidity_penalty_below: 40   # composite penalty applied if liquidity < this
+  rsi_sweet_spot: [45, 65]      # momentum reward band
+  rsi_overbought: 75
+  rsi_oversold: 30
+
+# Decision thresholds (deterministic engine).
+decisions:
+  buy_min_composite: 68
+  watch_min_composite: 56
+  avoid_max_composite: 42
+  min_risk_reward: 1.5
+  # A holding is a TRIM/SELL candidate when its score falls below these.
+  hold_floor_composite: 50
+  sell_floor_composite: 40
+
+# Risk model. All percentages are fractions of total portfolio value.
+risk:
+  max_new_position_pct: 0.05        # 5% default size for a NEW buy
+  max_high_risk_position_pct: 0.02  # 2% for high-risk names
+  # Single-name concentration CEILING for existing holdings (separate from the
+  # new-buy size). A deliberate high-conviction holding can run up to this before
+  # the engine flags a trim — set to your real tolerance, not the buy size.
+  max_single_position_pct: 0.25
+  max_speculative_exposure_pct: 0.15  # total high-beta/speculative bucket
+  max_daily_new_buying_pct: 0.10    # total new buys suggested per day
+  # high-risk classification thresholds
+  high_beta_threshold: 1.3
+  high_volatility_annual: 0.45
+  # stop / target construction
+  stop_atr_multiple: 2.0
+  default_stop_pct: 0.12
+  default_take_profit_pct: 0.25
+  # liquidity warning: flag if target SEK > this fraction of avg daily turnover
+  position_vs_adv_warn: 0.10
+
+# Crypto sleeve (separate from equities — coins have NO fundamentals, so they
+# use a dedicated trend/momentum/quality-tier model, never the stock composite).
+# Thesis (deliberately conservative): BTC is the only sanctioned destination for
+# NEW money; keep the core; consolidate the speculative tail INTO BTC; never
+# panic-sell quality at the lows. Research only — no trading, no automation.
+crypto:
+  enabled: true
+  core: [BTC, ETH, SOL]             # holdings you keep through the cycle
+  new_money_symbol: BTC             # the only coin worth fresh capital
+  accumulate_tier1_secondary: true  # ETH may also be "accumulate" on a strong trend
+  dust_usd_below: 15                # positions under this = immaterial, ignore (fees > value)
+  single_name_cap_pct: 0.55         # flag a coin above this share of the crypto sleeve
+  # scoring weights for the crypto composite (renormalised over available data)
+  weights:
+    trend: 0.25
+    momentum: 0.20
+    quality_tier: 0.25
+    btc_relative: 0.15
+    risk: 0.15
+
+# Screening filters.
+filters:
+  min_avg_turnover_sek: 5000000     # ~5 MSEK/day avg traded value
+  min_market_cap_sek: 1000000000    # 1 BSEK unless explicitly allowed
+  exclude_penny_below_local: 5.0    # exclude price < 5 in local ccy (penny)
+  allow_small_cap: false            # set true to permit sub-threshold caps
+
+universe:
+  # Manual watchlist — always included regardless of filters.
+  watchlist: [VOLV-B.ST, INVE-B.ST, NVDA.US, ASML.EU]
+  # How many names to load per region from the built-in lists (mock uses all).
+  limits:
+    nordic: 60
+    eu: 40
+    us: 60
+  # Curated, smaller set the live screener fetches with FULL fundamentals +
+  # analyst targets (concurrently). Keeps the thesis-correct screen responsive.
+  screener_limits:
+    nordic: 40
+    eu: 28
+    us: 52
+
+reports:
+  use_llm: false   # deterministic memos by default; flip on if ANTHROPIC_API_KEY set
+  show_institutional_lenses: true
+
+# Always-on engine: scheduled scanner + push alerts (Telegram/email).
+engine:
+  enabled: true
+  timezone: Europe/Stockholm
+  scan_interval_minutes: 20          # intraday scan cadence during market hours
+  morning_digest: "08:15"            # local time (pre-Stockholm-open)
+  close_digest: "22:15"              # local time (after US close)
+  # Portfolio pulse: pushes your ACTUAL holdings' actions (exact shares/SEK) +
+  # the top screener idea to Telegram every N hours during market hours.
+  portfolio_pulse_enabled: true
+  portfolio_pulse_hours: 3
+  scope: [nordic, eu, us]            # regions to scan
+  include_watchlist: true
+  include_holdings: true
+  # only run intraday scans when a relevant market is open (else just digests)
+  market_hours_only: true
+  alerts:
+    channels: [telegram, email]      # which channels to push to
+    max_per_scan: 25                 # safety cap on alerts per scan
+    cooldown_minutes: 90             # min gap before re-alerting a recurring signal
+    big_move_pct: 0.06               # |daily move| that triggers a BIG_MOVE alert
+    breakout_lookback: 120           # bars for breakout (new high) detection
+    rsi_overbought: 75
+    rsi_oversold: 30
+    earnings_within_days: 5          # alert when earnings is within N days
+    new_buy_min_composite: 68        # composite needed to flag a NEW_BUY
+
+logging:
+  level: INFO
+  log_network_calls: true   # required: no hidden network calls

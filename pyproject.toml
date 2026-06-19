@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "avanza-research-terminal"
+version = "0.1.0"
+description = "Local stock research terminal — screening, scoring and decision memos. Research only; no broker login, no order execution."
+requires-python = ">=3.11"
+readme = "README.md"
+dependencies = [
+    "streamlit>=1.33",
+    "pandas>=2.1",
+    "numpy>=1.26",
+    "plotly>=5.20",
+    "pydantic>=2.6",
+    "PyYAML>=6.0",
+    "requests>=2.31",
+    "httpx>=0.27",
+    "python-dotenv>=1.0",
+    "feedparser>=6.0",
+]
+
+[project.optional-dependencies]
+fallback = ["yfinance>=0.2.40"]
+llm = ["anthropic>=0.40"]
+dev = ["pytest>=8.0"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+filterwarnings = ["ignore::DeprecationWarning"]
