@@ -11,7 +11,7 @@ STOCKHOLM: list[tuple[str, str]] = [
     ("EVO", "ST"), ("SINCH", "ST"), ("NIBE-B", "ST"), ("ALFA", "ST"),
     ("BOL", "ST"), ("ELUX-B", "ST"), ("ESSITY-B", "ST"), ("GETI-B", "ST"),
     ("HEXA-B", "ST"), ("KINV-B", "ST"), ("LUND-B", "ST"), ("SKF-B", "ST"),
-    ("SCA-B", "ST"), ("SWMA", "ST"), ("TEL2-B", "ST"), ("TELIA", "ST"),
+    ("SCA-B", "ST"), ("TEL2-B", "ST"), ("TELIA", "ST"),
     ("VOLCAR-B", "ST"), ("EPI-A", "ST"), ("EQT", "ST"), ("INDU-C", "ST"),
     ("SAGA-B", "ST"), ("BALD-B", "ST"), ("CAST", "ST"), ("FABG", "ST"),
     ("LIFCO-B", "ST"), ("LATO-B", "ST"), ("ADDT-B", "ST"), ("INDT", "ST"),

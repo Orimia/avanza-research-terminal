@@ -20,20 +20,21 @@ from src.scoring.risk import is_high_risk
 from src.scoring.technicals import compute_technicals
 from src.universe import load_screener_universe
 
-# --- palette (Apple system colors, dark) — matches .streamlit/config.toml ---
-BG = "#0a0a0c"
-PANEL = "#1c1c1e"
-INK = "#f5f5f7"
-MUTED = "#86868b"
-GRID = "rgba(255,255,255,0.07)"
-GREEN = "#30d158"
-RED = "#ff453a"
-AMBER = "#ff9f0a"
-BLUE = "#0a84ff"
+# --- palette (Apple system colors, LIGHT, accessible-contrast variants) -----
+# matches .streamlit/config.toml. Text-grade colors chosen for white surfaces.
+BG = "#f5f5f7"
+PANEL = "#ffffff"
+INK = "#1d1d1f"
+MUTED = "#6e6e73"
+GRID = "rgba(0,0,0,0.08)"
+GREEN = "#248a3d"
+RED = "#d70015"
+AMBER = "#b25000"
+BLUE = "#0066cc"
 
 ACTION_COLORS = {
-    "BUY": "#30d158", "WATCH": "#ff9f0a", "HOLD": "#0a84ff",
-    "TRIM": "#ff9f0a", "SELL": "#ff453a", "AVOID": "#86868b",
+    "BUY": "#248a3d", "WATCH": "#b25000", "HOLD": "#0066cc",
+    "TRIM": "#b25000", "SELL": "#d70015", "AVOID": "#6e6e73",
 }
 
 
@@ -59,6 +60,34 @@ def confidence_chip(conf: str) -> str:
     return f"<span style='color:{c};font-weight:600;font-size:0.8rem'>{dot} {conf}</span>"
 
 
+def tag(text: str, color: str) -> str:
+    """Small uppercase type tag (signal feed, tables)."""
+    return (f"<span class='tag' style='background:{color}22;color:{color};"
+            f"border:0.5px solid {color}44'>{text}</span>")
+
+
+def panel_header(label: str, right: str = "") -> str:
+    r = f"<span class='ph-r'>{right}</span>" if right else ""
+    return f"<div class='panel-h'><span>{label}</span>{r}</div>"
+
+
+def sparkline(closes: list[float], height: int = 44) -> go.Figure:
+    """Tiny axis-less line chart (market tape / panel footers)."""
+    up = len(closes) >= 2 and closes[-1] >= closes[0]
+    c = GREEN if up else RED
+    fig = go.Figure(go.Scatter(y=closes, mode="lines",
+                               line=dict(color=c, width=1.6),
+                               fill="tozeroy", fillcolor=f"rgba({'36,138,61' if up else '215,0,21'},0.10)",
+                               hoverinfo="skip"))
+    fig.update_layout(height=height, margin=dict(l=0, r=0, t=2, b=0),
+                      paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                      showlegend=False)
+    fig.update_xaxes(visible=False)
+    fig.update_yaxes(visible=False)
+    fig.update_yaxes(range=[min(closes) * 0.995, max(closes) * 1.005])
+    return fig
+
+
 def sev_dot(severity: str) -> str:
     """A small monochrome status dot (replaces feed severity emojis)."""
     color = {"critical": RED, "warn": AMBER, "info": BLUE}.get(severity, MUTED)
@@ -80,9 +109,9 @@ def inject_css() -> None:
         """
         <style>
         :root {
-          --ink:#f5f5f7; --muted:#86868b; --tint:#0a84ff; --green:#30d158; --red:#ff453a;
-          --glass: rgba(255,255,255,0.055); --glass-brd: rgba(255,255,255,0.10);
-          --radius: 18px;
+          --ink:#1d1d1f; --muted:#6e6e73; --tint:#0066cc; --green:#248a3d; --red:#d70015;
+          --card:#ffffff; --brd: rgba(0,0,0,0.10);
+          --radius: 14px;
         }
         html, body, [class*="css"], .stApp, button, input, textarea, select {
           font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
@@ -91,121 +120,111 @@ def inject_css() -> None:
           text-rendering: optimizeLegibility;
           font-feature-settings: "kern" 1, "liga" 1, "calt" 1; letter-spacing: -.003em;
         }
-        /* soft graphite backdrop with subtle depth */
-        .stApp {
-          background:
-            radial-gradient(1200px 600px at 75% -8%, rgba(10,132,255,0.10), transparent 60%),
-            radial-gradient(900px 500px at 0% 100%, rgba(48,209,88,0.06), transparent 55%),
-            #0a0a0c;
-        }
+        /* clean, flat light canvas — no gradients */
+        .stApp { background: #f5f5f7; }
         /* hide Streamlit chrome */
         #MainMenu, footer, [data-testid="stToolbar"], [data-testid="stDecoration"] { display:none !important; }
         [data-testid="stHeader"] { background: transparent; height: 0; }
-        .block-container { padding-top: 2rem; padding-bottom: 4rem; max-width: 1360px; }
-        /* tabular, SF-mono numerics */
+        .block-container { padding-top: 1.1rem; padding-bottom: 3rem; max-width: 1560px; }
+        div[data-testid="stVerticalBlock"] { gap: 0.65rem; }
+        /* tabular, SF-mono numerics — dense terminal sizing */
         [data-testid="stMetricValue"] {
           font-family: "SF Mono", ui-monospace, "JetBrains Mono", monospace !important;
-          font-weight: 600 !important; letter-spacing:-.01em;
-          font-variant-numeric: tabular-nums; font-size: 1.9rem !important;
+          font-weight: 600 !important; letter-spacing:-.01em; color: var(--ink);
+          font-variant-numeric: tabular-nums; font-size: 1.28rem !important;
         }
         [data-testid="stDataFrame"] { font-variant-numeric: tabular-nums; }
-        /* frosted-glass metric cards */
+        /* white metric cards, hairline border, soft shadow */
         [data-testid="stMetric"] {
-          background: var(--glass); border: 0.5px solid var(--glass-brd);
-          border-radius: var(--radius); padding: 16px 18px;
-          -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%);
-          box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset, 0 10px 34px rgba(0,0,0,0.45);
-          transition: transform .25s cubic-bezier(.2,.7,.2,1), box-shadow .25s ease;
+          background: var(--card); border: 0.5px solid var(--brd);
+          border-radius: 12px; padding: 9px 14px;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 4px 14px rgba(0,0,0,0.04);
+          transition: box-shadow .2s ease;
         }
-        [data-testid="stMetric"]:hover { transform: translateY(-2px); box-shadow: 0 14px 44px rgba(0,0,0,0.55); }
+        [data-testid="stMetric"]:hover { box-shadow: 0 2px 4px rgba(0,0,0,0.05), 0 8px 22px rgba(0,0,0,0.07); }
         [data-testid="stMetricLabel"] { color: var(--muted); font-size:0.8rem; font-weight:500; letter-spacing:.01em; }
-        /* frosted bordered containers */
+        /* white bordered containers (panels) */
         [data-testid="stVerticalBlockBorderWrapper"] {
-          border-radius: var(--radius) !important; border: 0.5px solid var(--glass-brd) !important;
-          background: var(--glass);
-          -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%);
-          box-shadow: 0 1px 0 rgba(255,255,255,0.05) inset, 0 8px 30px rgba(0,0,0,0.40);
-          transition: transform .25s cubic-bezier(.2,.7,.2,1);
+          border-radius: var(--radius) !important; border: 0.5px solid var(--brd) !important;
+          background: var(--card);
+          box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 6px 18px rgba(0,0,0,0.04);
         }
-        [data-testid="stVerticalBlockBorderWrapper"]:hover { transform: translateY(-1px); }
-        /* translucent sidebar */
+        /* sidebar: clean white rail */
         [data-testid="stSidebar"] {
-          background: rgba(20,20,22,0.72);
-          -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%);
-          border-right: 0.5px solid var(--glass-brd);
+          background: #fbfbfd;
+          border-right: 0.5px solid rgba(0,0,0,0.09);
         }
-        [data-testid="stSidebar"] { width: 274px !important; }
-        [data-testid="stSidebar"] .block-container { padding-top: 1.5rem; }
+        [data-testid="stSidebar"] { width: 268px !important; }
+        [data-testid="stSidebar"] .block-container { padding-top: 1.4rem; }
         /* ---- sidebar nav: real buttons styled as macOS sidebar rows ---- */
         [data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: 2px; }
         [data-testid="stSidebar"] .stButton > button {
           width:100%; justify-content:flex-start; text-align:left;
-          border-radius:9px; border:0 !important; background:transparent;
-          color:#c2c2cb; font-weight:500; font-size:0.95rem; letter-spacing:-.012em;
-          padding:7px 12px; box-shadow:none !important;
-          -webkit-backdrop-filter:none !important; backdrop-filter:none !important;
-          transition: background .16s ease, color .16s ease;
+          border-radius:8px; border:0 !important; background:transparent;
+          color:#3a3a3c; font-weight:500; font-size:0.92rem; letter-spacing:-.01em;
+          padding:6px 12px; box-shadow:none !important;
+          transition: background .14s ease, color .14s ease;
         }
         [data-testid="stSidebar"] .stButton > button:hover {
-          background: rgba(255,255,255,0.055); color:var(--ink);
+          background: rgba(0,0,0,0.05); color:var(--ink);
           transform:none; box-shadow:none !important; border:0 !important;
         }
         [data-testid="stSidebar"] .stButton > button[kind="primary"] {
-          background: linear-gradient(180deg, rgba(10,132,255,0.28), rgba(10,132,255,0.17));
-          color:#fff; font-weight:600;
-          box-shadow: 0 1px 0 rgba(255,255,255,0.12) inset, 0 6px 16px rgba(10,132,255,0.20) !important;
+          background: rgba(0,102,204,0.10); color:var(--tint); font-weight:600;
+          box-shadow: none !important;
         }
         [data-testid="stSidebar"] .stButton > button[kind="primary"]:hover {
-          background: linear-gradient(180deg, rgba(10,132,255,0.34), rgba(10,132,255,0.21)); color:#fff;
+          background: rgba(0,102,204,0.14); color:var(--tint);
         }
         /* brand lockup + sidebar furniture */
-        .brand { display:flex; align-items:center; gap:11px; padding:2px 4px; }
-        .brand-mark { width:30px; height:30px; border-radius:8px; flex:none;
-          background: conic-gradient(from 200deg at 50% 50%, #0a84ff, #30d158, #5e5ce6, #0a84ff);
-          box-shadow: 0 4px 14px rgba(10,132,255,0.35), 0 1px 0 rgba(255,255,255,0.28) inset; }
-        .brand-title { font-family:"SF Pro Display"; font-weight:650; font-size:1.04rem; color:var(--ink);
+        .brand { display:flex; align-items:center; gap:10px; padding:2px 4px; }
+        .brand-mark { width:30px; height:30px; border-radius:8px; flex:none; background:#1d1d1f;
+          display:flex; align-items:center; justify-content:center; }
+        .brand-title { font-family:"SF Pro Display"; font-weight:650; font-size:1.02rem; color:var(--ink);
           letter-spacing:-.02em; line-height:1.12; }
-        .brand-sub { font-size:0.7rem; color:var(--muted); letter-spacing:.07em; text-transform:uppercase; }
-        .status-line { font-size:0.8rem; color:#c2c2cb; margin:15px 4px 0; display:flex; align-items:center; gap:7px; }
-        .status-dot { width:8px; height:8px; border-radius:50%; flex:none; box-shadow:0 0 8px currentColor; }
-        .nav-sep { height:1px; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.10),transparent); margin:15px 0; }
-        .side-foot { font-size:0.72rem; color:var(--muted); padding:2px 4px; line-height:1.55; }
-        .side-disc { color:#6b6b70; font-style:italic; }
+        .brand-sub { font-size:0.72rem; color:#8e8e93; letter-spacing:.01em; }
+        .status-line { font-size:0.78rem; color:#6e6e73; margin:13px 4px 0; display:flex; align-items:center; gap:7px; }
+        .status-dot { width:7px; height:7px; border-radius:50%; flex:none; }
+        .nav-sep { height:1px; background:rgba(0,0,0,0.08); margin:13px 0; }
+        .side-foot { font-size:0.72rem; color:#8e8e93; padding:2px 4px; line-height:1.55; }
+        .side-disc { color:#8e8e93; }
+        /* professional terminals do not use italics — kill them everywhere,
+           including markdown emphasis inside memos and captions */
+        em, i { font-style: normal !important; }
         /* typography — SF Pro optical scale */
         h1, h2, h3, h4 {
           font-family: "SF Pro Display", -apple-system, BlinkMacSystemFont, Inter, sans-serif !important;
           color: var(--ink);
         }
-        h1 { font-weight:700; letter-spacing:-.032em; font-size:2rem; line-height:1.1; margin-bottom:.15rem; }
+        h1 { font-weight:700; letter-spacing:-.032em; font-size:1.5rem; line-height:1.1; margin-bottom:.1rem; }
         h2 { font-weight:640; letter-spacing:-.024em; font-size:1.38rem; line-height:1.2; }
         h3 { font-weight:600; letter-spacing:-.018em; font-size:1.1rem; }
-        p, span, label, li, .stMarkdown { color:#e6e6eb; font-size:0.95rem; line-height:1.5; }
+        p, span, label, li, .stMarkdown { color:#1d1d1f; font-size:0.95rem; line-height:1.5; }
         [data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] * {
           color: var(--muted) !important; letter-spacing: 0; line-height: 1.45;
         }
-        /* pill buttons with smooth hover */
+        /* pill buttons */
         .stButton>button {
-          border-radius: 980px; border:0.5px solid var(--glass-brd);
-          background: rgba(255,255,255,0.07); color: var(--ink); font-weight:600;
+          border-radius: 980px; border:0.5px solid rgba(0,0,0,0.16);
+          background: #ffffff; color: var(--ink); font-weight:600;
           padding: 6px 16px;
-          transition: all .22s cubic-bezier(.2,.7,.2,1);
-          -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+          transition: all .18s ease;
         }
         .stButton>button:hover {
-          background: rgba(10,132,255,0.18); border-color: var(--tint); color:#fff;
-          transform: translateY(-1px); box-shadow: 0 6px 20px rgba(10,132,255,0.25);
+          background: rgba(0,102,204,0.06); border-color: var(--tint); color: var(--tint);
         }
         .stButton>button[kind="primary"] { background: var(--tint); border-color: var(--tint); color:#fff; }
+        .stButton>button[kind="primary"]:hover { background:#0056ad; color:#fff; }
         /* inputs / selects rounded */
         [data-baseweb="select"]>div, .stTextInput input, .stNumberInput input, [data-baseweb="input"] {
-          border-radius: 12px !important;
+          border-radius: 10px !important;
         }
-        /* toggles -> Apple green */
-        [data-testid="stWidgetLabel"]+div [aria-checked="true"], [role="switch"][aria-checked="true"] { background: var(--green) !important; }
+        /* toggles */
+        [data-testid="stWidgetLabel"]+div [aria-checked="true"], [role="switch"][aria-checked="true"] { background: #34c759 !important; }
         /* slider tint */
-        [data-testid="stSlider"] [role="slider"] { box-shadow: 0 0 0 6px rgba(10,132,255,0.18); }
+        [data-testid="stSlider"] [role="slider"] { box-shadow: 0 0 0 6px rgba(0,102,204,0.14); }
         /* dataframe */
-        [data-testid="stDataFrame"] { border-radius:14px; overflow:hidden; border:0.5px solid var(--glass-brd); }
+        [data-testid="stDataFrame"] { border-radius:12px; overflow:hidden; border:0.5px solid var(--brd); }
         /* tabs */
         [data-baseweb="tab-list"] { gap: 4px; }
         [data-baseweb="tab"] { border-radius: 980px; }
@@ -213,16 +232,43 @@ def inject_css() -> None:
         a:hover { text-decoration:underline; }
         /* thin scrollbar */
         ::-webkit-scrollbar { width: 9px; height: 9px; }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.16); border-radius: 980px; }
+        ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.18); border-radius: 980px; }
         ::-webkit-scrollbar-track { background: transparent; }
         /* market chips */
         .mkt { display:inline-block; padding:4px 12px; border-radius:980px; font-size:0.78rem;
                font-weight:600; margin-right:8px; border:0.5px solid; }
-        .mkt-open { color:var(--green); border-color:rgba(48,209,88,.4); background:rgba(48,209,88,.12); }
-        .mkt-closed { color:var(--muted); border-color:rgba(134,134,139,.4); background:rgba(134,134,139,.08); }
+        .mkt-open { color:var(--green); border-color:rgba(36,138,61,.35); background:rgba(36,138,61,.07); }
+        .mkt-closed { color:var(--muted); border-color:rgba(0,0,0,.14); background:rgba(0,0,0,.03); }
         /* subtle fade-in */
-        .main .block-container > div { animation: fadein .5s ease; }
-        @keyframes fadein { from {opacity:0; transform: translateY(6px);} to {opacity:1; transform:none;} }
+        .main .block-container > div { animation: fadein .4s ease; }
+        @keyframes fadein { from {opacity:0; transform: translateY(5px);} to {opacity:1; transform:none;} }
+        /* ---- terminal panels (AlphaSense-style density) ---- */
+        .panel-h { font-size:10.5px; font-weight:650; letter-spacing:.12em; text-transform:uppercase;
+                   color:#6e6e73; border-bottom:0.5px solid rgba(0,0,0,0.10);
+                   padding-bottom:6px; margin:2px 0 8px; display:flex; justify-content:space-between; }
+        .panel-h .ph-r { color:#8e8e93; letter-spacing:0; text-transform:none; font-weight:500; }
+        table.term { width:100%; border-collapse:collapse; font-size:12.5px;
+                     font-variant-numeric: tabular-nums; }
+        table.term th { text-align:right; color:#6e6e73; font-weight:550; font-size:10.5px;
+                        letter-spacing:.06em; text-transform:uppercase; padding:3px 8px;
+                        border-bottom:0.5px solid rgba(0,0,0,0.12); }
+        table.term th:first-child, table.term td:first-child { text-align:left; padding-left:2px; }
+        table.term td { text-align:right; padding:4.5px 8px; color:#1d1d1f;
+                        border-bottom:0.5px solid rgba(0,0,0,0.05); white-space:nowrap; }
+        table.term tr:hover td { background:rgba(0,0,0,0.025); }
+        .sym { font-weight:650; color:#111114; letter-spacing:.01em; }
+        .sub { color:#6e6e73; font-size:11px; }
+        .feed-row { padding:6px 2px; border-bottom:0.5px solid rgba(0,0,0,0.06);
+                    font-size:12.5px; line-height:1.45; }
+        .feed-row:hover { background:rgba(0,0,0,0.02); }
+        .ago { float:right; color:#8e8e93; font-size:10.5px; padding-top:2px; }
+        .tag { display:inline-block; border-radius:5px; padding:0.5px 7px; font-size:9.5px;
+               font-weight:700; letter-spacing:.07em; text-transform:uppercase; margin-right:7px;
+               vertical-align:1px; }
+        .tape-item { display:inline-flex; align-items:baseline; gap:7px; margin-right:22px;
+                     font-size:12.5px; font-variant-numeric:tabular-nums; }
+        .tape-item .tl { color:#6e6e73; font-weight:550; }
+        .tape-item .tv { font-weight:650; color:#111114; }
         </style>
         """,
         unsafe_allow_html=True,
@@ -256,8 +302,8 @@ def range_bar(tech, price: float | None, currency: str) -> str:
         "<div style='position:relative;height:6px;border-radius:980px;"
         "background:linear-gradient(90deg,#ff453a55,#ff9f0a55,#30d15855);margin-top:4px'>"
         f"<div style='position:absolute;left:{pct:.1f}%;top:-4px;width:14px;height:14px;"
-        "border-radius:50%;background:#fff;transform:translateX(-50%);"
-        "box-shadow:0 0 0 3px rgba(10,132,255,0.5)'></div></div>"
+        "border-radius:50%;background:#1d1d1f;transform:translateX(-50%);"
+        "box-shadow:0 0 0 3px rgba(0,102,204,0.45)'></div></div>"
         f"<div style='text-align:center;font-size:0.72rem;color:#a1a1a6;margin-top:3px'>"
         f"{pct:.0f}% of 52-week range · now {price:.0f} {currency}</div></div>"
     )
@@ -277,7 +323,7 @@ def market_status_chips() -> str:
 # -- charts ---------------------------------------------------------------- #
 def _dark(fig: go.Figure, height: int) -> go.Figure:
     fig.update_layout(
-        template="plotly_dark", height=height, margin=dict(l=4, r=4, t=10, b=4),
+        template="plotly_white", height=height, margin=dict(l=4, r=4, t=10, b=4),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color=INK, family="Inter"),
         legend=dict(bgcolor="rgba(0,0,0,0)", orientation="h", y=1.02, x=0),
@@ -321,7 +367,7 @@ def score_bars(b: ScoreBreakdown) -> go.Figure:
 
 
 def exposure_pie(data: dict[str, float], title: str) -> go.Figure:
-    palette = [GREEN, BLUE, AMBER, RED, "#a78bfa", "#22d3ee", "#f472b6", "#94a3b8"]
+    palette = [GREEN, BLUE, AMBER, RED, "#7c3aed", "#0891b2", "#db2777", "#64748b"]
     fig = go.Figure(go.Pie(labels=list(data.keys()), values=list(data.values()),
                            hole=0.55, marker=dict(colors=palette),
                            textinfo="label+percent", textfont_size=11))
@@ -352,8 +398,8 @@ def _benchmark_ret_3m(stocks: list[StockData]) -> float | None:
 
 
 def recommend_for(data: StockData, fx: dict[str, float], pv: float,
-                  benchmark: float | None) -> Recommendation:
-    cfg = get_config()
+                  benchmark: float | None, cfg=None) -> Recommendation:
+    cfg = cfg or get_config()
     a = analyze(data, fx, benchmark, cfg)
     action, _, _ = decide_new(data, a.breakdown, a.risk_reward, cfg)
     high_risk = is_high_risk(data, a.technicals, cfg)
@@ -373,12 +419,16 @@ def run_screen(region: str, allow_small_cap: bool, pv: float) -> list[dict]:
     """
     from src.universe.filters import apply_filters
 
+    from src.scoring.regime import apply_regime, current_regime
+
     fx = get_fx_rates()
+    cfg = get_config()
+    cfg, _ = apply_regime(cfg, current_regime(cfg=cfg))   # regime-adaptive BUY bar
     entries = load_screener_universe(region)
     stocks = get_full_many(entries)
     benchmark = _benchmark_ret_3m(stocks)
     passed, results = apply_filters(stocks, fx, allow_small_cap=allow_small_cap)
-    recs = [recommend_for(s, fx, pv, benchmark) for s in passed]
+    recs = [recommend_for(s, fx, pv, benchmark, cfg) for s in passed]
     recs.sort(key=lambda r: r.score.composite, reverse=True)
     excluded = [{"symbol": r.data.symbol, "reasons": r.reasons}
                 for r in results if not r.passed]
@@ -430,11 +480,11 @@ def conviction(rec: Recommendation) -> float:
 
 # one-click thesis lenses — re-rank the same screen by what you care about
 THESIS_PRESETS = {
-    "⚖️ Balanced": "balanced",
-    "🏰 Compounders (quality+growth)": "compounders",
-    "💎 Deep value": "value",
-    "🚀 Momentum": "momentum",
-    "💰 Dividend income": "income",
+    "Balanced": "balanced",
+    "Compounders": "compounders",
+    "Deep value": "value",
+    "Momentum": "momentum",
+    "Income": "income",
 }
 
 
@@ -512,6 +562,11 @@ def portfolio_value(default: float) -> float:
     return float(st.session_state.get("portfolio_value_sek", default))
 
 
+def is_simple() -> bool:
+    """Simple mode: plain-language essentials only (sidebar toggle)."""
+    return bool(st.session_state.get("simple_mode", False))
+
+
 # -- crypto: cached loaders + components ----------------------------------- #
 @st.cache_data(ttl=900, show_spinner="Pricing your crypto + scoring the market…")
 def run_crypto_holdings() -> dict:
@@ -538,6 +593,29 @@ def unpack_crypto(rows: list[dict]):
 def clear_crypto_cache() -> None:
     run_crypto_holdings.clear()
     run_crypto_discovery.clear()
+
+
+# -- V2: market regime ------------------------------------------------------ #
+@st.cache_data(ttl=900, show_spinner=False)
+def load_regime() -> dict:
+    from src.scoring.regime import apply_regime, current_regime
+    cfg = get_config()
+    state = current_regime(cfg=cfg)
+    _, note = apply_regime(cfg, state)
+    return {"label": state.label, "score": state.score, "note": note,
+            "components": state.components, "buy_min": state.buy_min_effective}
+
+
+_REGIME_COLOR = {"risk-on": GREEN, "neutral": AMBER, "risk-off": RED, "unknown": MUTED}
+
+
+def regime_chip() -> str:
+    r = load_regime()
+    c = _REGIME_COLOR.get(r["label"], MUTED)
+    return (f"<span style='background:{c}1c;color:{c};border:0.5px solid {c}55;"
+            f"border-radius:980px;padding:3px 12px;font-size:0.78rem;font-weight:650'>"
+            f"Regime · {r['label']}</span> "
+            f"<span style='color:#8b98a9;font-size:0.78rem'>{r['note']}</span>")
 
 
 def crypto_badge(action: str, label: str) -> str:

@@ -53,19 +53,19 @@ def _held_sector_weights() -> dict:
 def _buy_card(r, rank: int, owned: bool = False, heavy_sectors: set | None = None) -> None:
     with st.container(border=True):
         top = st.columns([3, 1, 1])
-        own = " <span style='color:#4aa8ff;font-size:0.75rem'>· you own this</span>" if owned else ""
+        own = " <span style='color:#0066cc;font-size:0.75rem'>· you own this</span>" if owned else ""
         top[0].markdown(
-            f"<span style='color:#6b7787'>#{rank}</span> &nbsp;"
+            f"<span style='color:#8e8e93'>#{rank}</span> &nbsp;"
             f"<span style='font-size:1.2rem;font-weight:800;letter-spacing:.02em'>"
-            f"{r.ticker.upper()}</span> <span style='color:#8b98a9'>· {r.exchange}</span>{own}<br>"
-            f"<span style='font-size:0.95rem;color:#c4cdd9'>{r.display_name}</span><br>"
+            f"{r.ticker.upper()}</span> <span style='color:#6e6e73'>· {r.exchange}</span>{own}<br>"
+            f"<span style='font-size:0.95rem;color:#3a3a3c'>{r.display_name}</span><br>"
             f"{ui.action_badge(r.action.value)} &nbsp; {ui.confidence_chip(r.confidence.value)}",
             unsafe_allow_html=True)
         top[1].metric("Score", f"{r.score.composite:.0f}")
         top[2].metric("R/R", f"{r.risk_reward.rr_ratio:.1f}" if r.risk_reward else "—")
         # the actionable step
         st.markdown(
-            f"<div style='background:rgba(48,209,88,0.10);border:0.5px solid rgba(48,209,88,0.4);"
+            f"<div style='background:rgba(36,138,61,0.07);border:0.5px solid rgba(36,138,61,0.35);"
             f"border-radius:12px;padding:9px 13px;margin:5px 0'>{ui.action_line(r)}</div>",
             unsafe_allow_html=True)
         badges = ui.pick_badges(r)
@@ -74,28 +74,43 @@ def _buy_card(r, rank: int, owned: bool = False, heavy_sectors: set | None = Non
         if heavy_sectors and r.sector in heavy_sectors:
             st.caption(f"You're already heavy in {r.sector} — adds concentration, "
                        "not diversification.")
-        st.markdown(f"<span style='color:#8b98a9;font-size:0.85rem'>Targets</span> &nbsp;"
+        # what the company actually does + why it's rated a buy, in plain language
+        from src.reports.plain import first_sentence, why_bullets
+        brief = first_sentence(r.description)
+        if brief:
+            st.markdown(f"<span style='color:#3a3a3c;font-size:0.88rem'>{brief}</span>",
+                        unsafe_allow_html=True)
+        whys = why_bullets(r)
+        if whys:
+            items = "".join(f"<li>{w}</li>" for w in whys)
+            st.markdown(f"<ul style='margin:2px 0 4px 18px;padding:0;color:#3a3a3c;"
+                        f"font-size:0.85rem;line-height:1.55'>{items}</ul>",
+                        unsafe_allow_html=True)
+        st.markdown(f"<span style='color:#6e6e73;font-size:0.85rem'>Targets</span> &nbsp;"
                     f"{ui.target_block(r)}", unsafe_allow_html=True)
-        st.markdown(f"<span style='color:#c4cdd9'>{ui.screener_rationale(r)}</span>  \n"
-                    f"<span style='color:#8b98a9;font-size:0.82rem'>Risk · {r.biggest_risk}</span>",
+        st.markdown(f"<span style='color:#6e6e73;font-size:0.82rem'>Risk · {r.biggest_risk}</span>",
                     unsafe_allow_html=True)
         row = st.columns([3, 1, 1])
         if row[1].button("Deep dive", key=f"dd_{r.symbol}"):
             _go_deep_dive(r.ticker, r.exchange)
         if row[2].button("Watch", key=f"wl_{r.symbol}"):
             get_db().watchlist_add(r.ticker, r.exchange)
-            st.toast(f"Added {r.ticker.upper()} to watchlist", icon="⭐")
+            st.toast(f"Added {r.ticker.upper()} to watchlist")
 
 
 def page_opportunities() -> None:
     cfg = get_config()
     st.header("Stock Screener")
     ui.disclaimer_banner()
+    if ui.is_simple():
+        _simple_opportunities(cfg)
+        return
     _thesis_caption(cfg)
+    st.markdown(ui.regime_chip(), unsafe_allow_html=True)
 
     c1, c2, c3 = st.columns([1.3, 3, 0.8])
     region = c1.selectbox("Region", ["best", "nordic", "eu", "us"],
-                          format_func=lambda r: "🌍 Best ideas (all)" if r == "best" else r.title())
+                          format_func=lambda r: "Best ideas (all)" if r == "best" else r.title())
     preset_label = c2.radio("Lens", list(ui.THESIS_PRESETS), horizontal=True,
                             label_visibility="collapsed")
     preset = ui.THESIS_PRESETS[preset_label]
@@ -150,6 +165,12 @@ def page_opportunities() -> None:
               delta_color="normal" if planned <= daily_cap else "inverse")
 
     st.subheader(f"Top BUY ideas — {preset_label}")
+    from src.portfolio.discipline import check_new_buys
+    fomo = check_new_buys(buys[:8], cfg)
+    if fomo:
+        st.caption("Discipline · extended entries: "
+                   + " · ".join(f"{f.symbol} ({f.message.split('(')[1].split(')')[0]})"
+                                if "(" in f.message else f.symbol for f in fomo))
     if not buys:
         st.info("No names clear the BUY bar with current filters/lens. Lower the min score, "
                 "widen filters, switch lens, or hit Refresh.")
@@ -160,7 +181,7 @@ def page_opportunities() -> None:
     st.subheader("Watchlist — good names, wait for a better entry")
     _table(watch)
     _csv_download(buys + watch, region, preset_label)
-    with st.expander(f"⚫ Avoid ({len(avoid)}) & filtered-out ({len(excluded)})"):
+    with st.expander(f"Avoid ({len(avoid)}) & filtered-out ({len(excluded)})"):
         _table(avoid)
         if excluded:
             st.markdown("**Excluded by liquidity / market-cap / penny filters:**")
@@ -212,6 +233,28 @@ def _csv_download(recs: list, region: str, preset: str) -> None:
                        file_name=f"screen_{region}_{slug}.csv", mime="text/csv")
 
 
+def _simple_opportunities(cfg) -> None:
+    """Simple mode: the three best ideas across every market, in plain language."""
+    st.markdown(ui.regime_chip(), unsafe_allow_html=True)
+    st.caption("The three strongest buy ideas across Sweden, Europe and the US right now — "
+               "what each company does and why it clears the bar. Flip off Simple mode "
+               "for filters, lenses and the full lists.")
+    pv = ui.portfolio_value(cfg.portfolio_value_sek)
+    rows = []
+    for rg in ("nordic", "eu", "us"):
+        rows += ui.run_screen(rg, False, pv)
+    recs, _ = ui.unpack_recs(rows)
+    held = {h.symbol for h in get_db().portfolio_all()}
+    buys = sorted([r for r in recs if r.action == Action.BUY and r.symbol not in held],
+                  key=lambda r: ui.conviction(r), reverse=True)
+    if not buys:
+        st.info("Nothing clears the buy bar right now. That is a normal state — "
+                "the engine would rather say nothing than stretch.")
+        return
+    for i, r in enumerate(buys[:3], start=1):
+        _buy_card(r, rank=i)
+
+
 # ============================== Stock Deep Dive =========================== #
 def page_deep_dive() -> None:
     cfg = get_config()
@@ -241,7 +284,7 @@ def page_deep_dive() -> None:
     rec = ui.recommend_for(data, fx, pv, None)
 
     if data.is_mock:
-        st.warning("⚠️ MOCK DATA for this symbol (no key/network). Synthetic — demo only.")
+        st.warning("MOCK DATA for this symbol (no key/network). Synthetic — demo only.")
 
     h = st.columns([2, 1, 1, 1])
     h[0].markdown(f"### {data.name or ticker} ({rec.symbol})  \n"
@@ -257,7 +300,7 @@ def page_deep_dive() -> None:
     a1, _ = st.columns([1, 5])
     if a1.button("Add to watchlist"):
         get_db().watchlist_add(ticker.strip(), exchange)
-        st.toast(f"Added {rec.symbol} to watchlist", icon="⭐")
+        st.toast(f"Added {rec.symbol} to watchlist")
 
     # 52-week range context
     if rec.technicals and data.quote:
@@ -272,7 +315,7 @@ def page_deep_dive() -> None:
 
     # latest news with clickable, cited links
     if data.news:
-        with st.expander(f"📰 Latest news ({len(data.news)})", expanded=False):
+        with st.expander(f"Latest news ({len(data.news)})", expanded=False):
             for n in data.news[:8]:
                 ts = n.timestamp.strftime("%Y-%m-%d %H:%M")
                 st.markdown(f"- [{n.title}]({n.url}) — *{n.source}, {ts}*")

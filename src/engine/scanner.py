@@ -36,6 +36,7 @@ class ScanResult:
     top_buys: list[Recommendation] = field(default_factory=list)
     holdings_review: list[HoldingAnalysis] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+    regime_note: str = ""
 
 
 @dataclass
@@ -46,6 +47,8 @@ class PulseResult:
     top_buys: list[dict] = field(default_factory=list)             # recent NEW_BUY alerts
     n_holdings: int = 0
     errors: list[str] = field(default_factory=list)
+    regime_note: str = ""
+    discipline: list[str] = field(default_factory=list)            # personal-rule warnings
 
 
 # --------------------------------------------------------------------------- #
@@ -161,6 +164,12 @@ def run_intraday() -> ScanResult:
             if h is not None and h.fixed_value_sek is None and h.whole_share_instrument:
                 sigs.extend(S.stop_take(s, h, stop_pct, tp_pct))
         res.emitted = _process(sigs, now, cfg)
+        try:  # paper-trade the emitted signals (virtual fills — track record)
+            from src.portfolio import paper
+
+            paper.process_signals(res.emitted, get_fx_rates(), cfg)
+        except Exception:  # pragma: no cover - paper must never break a scan
+            log.exception("paper fills failed")
         db.scan_run_finish(rid, n_scanned=res.scanned, n_signals=len(res.emitted), status="ok")
     except Exception as exc:  # pragma: no cover - defensive
         res.errors.append(str(exc))
@@ -172,13 +181,18 @@ def run_intraday() -> ScanResult:
 
 def run_full(kind: str = "full") -> ScanResult:
     cfg = get_config()
+    # regime-adaptive thresholds: harder BUY bar in risk-off, relief in risk-on
+    from src.scoring.regime import apply_regime, current_regime
+
+    regime = current_regime(cfg=cfg)
+    cfg, regime_note = apply_regime(cfg, regime)
     a = cfg.get("engine.alerts", {}) or {}
     fx = get_fx_rates()
     db = get_db()
     rid = db.scan_run_start(kind)
     now = datetime.now(timezone.utc)
     today = now.date().isoformat()
-    res = ScanResult(kind=kind)
+    res = ScanResult(kind=kind, regime_note=regime_note)
     try:
         uni, holdings, wl = _gather(cfg)
         entries = _dedup(uni + wl + [(h.ticker, h.exchange) for h in holdings])
@@ -228,10 +242,26 @@ def run_full(kind: str = "full") -> ScanResult:
                 ha_sig = S.holding_action(d, ha.action, ha.rationale, ha.trade_note)
                 if ha_sig:
                     sigs.append(ha_sig)
+            # daily you-vs-index snapshot (honest: starts the day tracking starts)
+            try:
+                def _close(sym: str) -> float | None:
+                    d = get_stock_data(sym, "US", enrich_news=False)
+                    return d.closes()[-1] if (not d.is_mock and d.closes()) else None
+
+                db.snapshot_upsert(today, review.total_value_sek,
+                                   _close("^GSPC"), _close("^OMX"))
+            except Exception:  # pragma: no cover - snapshot must never break a scan
+                log.exception("snapshot failed")
 
         res.top_buys.sort(key=lambda r: r.score.composite, reverse=True)
         res.top_buys = res.top_buys[:8]
         res.emitted = _process(sigs, now, cfg)
+        try:  # paper-trade the emitted signals (virtual fills — track record)
+            from src.portfolio import paper
+
+            paper.process_signals(res.emitted, fx, cfg)
+        except Exception:  # pragma: no cover - paper must never break a scan
+            log.exception("paper fills failed")
         db.scan_run_finish(rid, n_scanned=res.scanned, n_signals=len(res.emitted), status="ok")
     except Exception as exc:  # pragma: no cover - defensive
         res.errors.append(str(exc))
@@ -269,6 +299,15 @@ def run_portfolio_pulse(*, send: bool = True) -> PulseResult:
             res.value_sek = review.total_value_sek
             res.unrealized_pct = review.unrealized_pct
             res.actions = [h for h in review.holdings if h.action.value != "HOLD"]
+            # personal discipline check + regime context for the pulse message
+            from src.portfolio.discipline import check_holdings
+            from src.scoring.regime import current_regime
+
+            res.discipline = [f"{f.symbol}: {f.message}"
+                              for f in check_holdings(review, cfg)[:3]]
+            reg = current_regime(cfg=cfg)
+            if reg.is_known:
+                res.regime_note = f"{reg.label} ({reg.score:+.0f})"
             held = {h.holding.symbol for h in review.holdings}
             res.top_buys = [a for a in db.alerts_recent(80)
                             if a["type"] == "NEW_BUY" and a["symbol"] not in held][:2]

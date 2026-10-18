@@ -20,7 +20,7 @@ log = get_logger("memo")
 def _header(data: StockData, rec: Recommendation, cfg: Config) -> str:
     lines = [f"# {rec.action.value} — {rec.name or rec.ticker} ({rec.symbol})", ""]
     if data.is_mock:
-        lines.append("> ⚠️ **MOCK DATA** — no API key/network for this name. "
+        lines.append("> **MOCK DATA** — no API key/network for this name. "
                      "Numbers are synthetic and for UI/demo only; not investable signal.")
         lines.append("")
     lines.append(f"> _{cfg.disclaimer}_  ·  Research only — no broker login, no orders, "

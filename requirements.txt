@@ -18,6 +18,10 @@ tzdata>=2024.1           # timezone data (zoneinfo on slim/Docker images)
 yfinance>=0.2.40         # optional; guarded import
 # pandas-datareader>=0.10  # optional Stooq fallback
 
+# --- Optional: OpenBB Platform (multi-source data aggregation; HEAVY ~200MB) ---
+# The provider chain skips it gracefully when absent. Install: pip install openbb
+# openbb>=4.3
+
 # --- Optional LLM memo generation (deterministic engine works without it) ---
 anthropic>=0.40          # optional; only used if ANTHROPIC_API_KEY is set
 

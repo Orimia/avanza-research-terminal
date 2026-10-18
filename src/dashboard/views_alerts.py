@@ -23,8 +23,8 @@ def page_alerts() -> None:
 
     # -- engine status -----------------------------------------------------
     last = db.last_scan_run()
-    tg = "✅" if cfg.has_key("TELEGRAM_BOT_TOKEN") and cfg.has_key("TELEGRAM_CHAT_ID") else "—"
-    em = "✅" if cfg.has_key("ALERT_EMAIL_SMTP_HOST") else "—"
+    tg = "Connected" if cfg.has_key("TELEGRAM_BOT_TOKEN") and cfg.has_key("TELEGRAM_CHAT_ID") else "—"
+    em = "Connected" if cfg.has_key("ALERT_EMAIL_SMTP_HOST") else "—"
     c = st.columns(4)
     c[0].metric("Engine enabled", "yes" if cfg.get("engine.enabled", True) else "no")
     c[1].metric("Scan interval", f"{cfg.get('engine.scan_interval_minutes', 20)} min")
@@ -82,7 +82,7 @@ def page_alerts() -> None:
             "When": a["created_at"][:16].replace("T", " "),
             "Sev": _SEV.get(a["severity"], "•"),
             "Symbol": a["symbol"], "Type": a["type"], "Action": a["action"],
-            "Signal": a["title"], "Pushed": "✅" if a["sent"] else "—",
+            "Signal": a["title"], "Pushed": "Yes" if a["sent"] else "—",
         } for a in rows])
         st.dataframe(df, width="stretch", hide_index=True, height=420)
 

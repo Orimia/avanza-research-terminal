@@ -155,7 +155,7 @@ def portfolio_fit_section(rec: Recommendation) -> str:
     if s.currency_risk:
         out.append(f"- **Currency risk:** {s.currency_risk}")
     if s.liquidity_warning:
-        out.append(f"- ⚠️ **Liquidity:** {s.liquidity_warning}")
+        out.append(f"- **Liquidity:** {s.liquidity_warning}")
     return "\n".join(out)
 
 
@@ -273,8 +273,8 @@ def stress_test_table(data: StockData, t: TechnicalSnapshot) -> str:
             score = -2 if data.currency == "USD" else -1 if data.currency != "SEK" else 0
         if scen == "Broad risk-off" and high_beta:
             score -= 1
-        label = {2: "🟢 Benefits", 1: "🟢 Resilient", 0: "🟡 Neutral",
-                 -1: "🟠 Moderate hit", -2: "🔴 High exposure"}.get(max(-2, min(2, score)), "🟡 Neutral")
+        label = {2: "Benefits", 1: "Resilient", 0: "Neutral",
+                 -1: "Moderate hit", -2: "High exposure"}.get(max(-2, min(2, score)), "Neutral")
         note = {
             "USD/SEK swing": f"{data.currency} denominated — SEK value moves with FX",
             "Broad risk-off": f"vol {_pct(t.volatility)} ({'high beta' if high_beta else 'moderate'})",

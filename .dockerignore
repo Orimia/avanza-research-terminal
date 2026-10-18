@@ -11,3 +11,9 @@ logs/*.jsonl
 .env
 .DS_Store
 tests/
+.claude/
+.claude-flow/
+.gstack/
+logs/
+data/
+*.db

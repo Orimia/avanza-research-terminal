@@ -101,7 +101,7 @@ def test_holding_tail_consolidates_to_btc():
 
 
 def test_holding_dust_ignored():
-    s = _holding("VET", 3, 1.9, 0.3, qty=397.0)
+    s = _holding("VET", 3, 1.9, 0.3, qty=500.0)
     decide_crypto_holding(s)
     assert s.label.startswith("IGNORE") and "dust" in s.flags
 
@@ -113,7 +113,7 @@ def test_holding_concentration_flag():
 
 
 def test_holding_staked_sell_needs_unstake():
-    s = _holding("ADA", 3, 50, 8, qty=24.0, staked=87.0, composite=40)
+    s = _holding("ADA", 3, 50, 8, qty=100.0, staked=80.0, composite=40)
     decide_crypto_holding(s)
     assert s.action in (Action.SELL, Action.TRIM) and "unstake" in s.trade_note.lower()
 

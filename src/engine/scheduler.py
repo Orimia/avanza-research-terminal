@@ -81,6 +81,13 @@ def run() -> None:
         sched.add_job(_pulse_job, IntervalTrigger(hours=pulse_h),
                       id="pulse", max_instances=1, coalesce=True)
         log.info("portfolio pulse every %dh (market hours)", pulse_h)
+    if cfg.get("engine.weekly_letter_enabled", True):
+        from src.engine.notify import send_weekly_letter
+
+        sched.add_job(send_weekly_letter,
+                      CronTrigger(hour=mh[0], minute=mh[1], day_of_week="mon"),
+                      id="weekly_letter", max_instances=1)
+        log.info("weekly portfolio letter on Mondays %02d:%02d", mh[0], mh[1])
 
     log.info("Engine started — intraday every %dm (market hours), "
              "morning %02d:%02d, close %02d:%02d %s",
@@ -128,6 +135,14 @@ def main(argv: list[str]) -> None:
 
         res = run_portfolio_pulse(send=False)
         print(format_pulse(res)[1])
+    elif mode == "letter":
+        from src.engine.notify import send_weekly_letter
+
+        print("letter sent" if send_weekly_letter() else "letter not sent (no channels?)")
+    elif mode in ("letter-dry", "letter-preview"):
+        from src.engine.notify import build_weekly_letter
+
+        print(build_weekly_letter())
     else:
         run()
 

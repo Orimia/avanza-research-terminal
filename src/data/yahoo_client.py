@@ -46,7 +46,7 @@ _EU_YAHOO = {
     "DG": "DG.PA", "EL": "EL.PA", "KER": "KER.PA", "CAP": "CAP.PA", "DSY": "DSY.PA",
     "STLAM": "STLAM.MI", "ENEL": "ENEL.MI", "ENI": "ENI.MI", "ISP": "ISP.MI",
     "UCG": "UCG.MI", "RACE": "RACE.MI",
-    # additional EU names (held by users / extended coverage)
+    # additional EU names (extended coverage)
     "DBK": "DBK.DE", "STM": "STMPA.PA", "CBK": "CBK.DE", "P911": "P911.DE",
     "VNA": "VNA.DE", "NOVN": "NOVN.SW", "NESN": "NESN.SW", "ROG": "ROG.SW",
     # European UCITS ETFs (XETRA)
@@ -66,6 +66,8 @@ _CRYPTO_YAHOO = {
 
 def yahoo_symbol(ticker: str, exchange: str) -> Optional[str]:
     ex = (exchange or "").upper()
+    if (ticker or "").startswith("^"):
+        return ticker            # index symbols (^GSPC, ^OMX) pass through as-is
     if ex in {"US", "NYSE", "NASDAQ"}:
         return ticker
     if ex in {"CC", "CRYPTO"}:
@@ -149,10 +151,12 @@ class YahooClient(DataProvider):
         catalysts = self._catalysts(info)
         analyst = self._analyst(info)
 
+        desc = info.get("longBusinessSummary")
         return StockData(
             ticker=ticker, exchange=exchange,
             name=info.get("longName") or info.get("shortName") or ticker,
             sector=info.get("sector"), country=info.get("country"),
+            description=desc if isinstance(desc, str) and desc.strip() else None,
             currency=ccy, quote=quote, fundamentals=fundamentals,
             price_history=bars, news=[], catalysts=catalysts, analyst=analyst,
             sources=["yahoo"],

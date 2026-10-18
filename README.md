@@ -1,187 +1,171 @@
-# 📈 avanza-research-terminal
+# Equity Research Terminal
 
 [![CI](https://github.com/Orimia/avanza-research-terminal/actions/workflows/ci.yml/badge.svg)](https://github.com/Orimia/avanza-research-terminal/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
-![Tests](https://img.shields.io/badge/tests-80%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-101%20passing-brightgreen)
 
-A **local stock research terminal** that screens Swedish, EU and US equities, ranks
-opportunities, analyzes your existing holdings, and produces concise institutional-style
-**BUY / HOLD / TRIM / SELL / AVOID** decision memos — so you can place **whole-share orders
-manually in Avanza yourself**.
+A local research terminal that screens Swedish, EU and US equities on a transparent
+multi-factor score, analyzes an existing portfolio's risk, and writes plain-language
+**BUY / HOLD / TRIM / SELL / AVOID** decision memos. The investor places every order manually.
 
-> ## 🔒 This is a research tool, not a trading bot
-> It **never** logs into Avanza, **never** places orders, **never** stores broker
-> credentials, and **never** uses unofficial Avanza APIs or scrapes Avanza pages.
-> It produces a dashboard and a daily decision memo. **You** place every order manually.
-> Whole shares only · no options · certificates disabled by default · base currency **SEK**.
->
+Personal project by Haonan Wang (June–July 2026), built with Claude Code as an agentic
+coding partner. Scoring, sizing and risk math are deterministic, pure Python and covered
+by an offline test suite.
+
+> **Research only, by construction.** It never logs into a broker, never places orders,
+> never stores broker credentials and never scrapes broker pages. A test fails the build if
+> any source file contains order-execution or credential-capture identifiers.
 > **This is not personal financial advice.**
 
-It runs **fully on deterministic mock data with zero API keys** so you can explore the whole
-UI immediately. Real data providers activate automatically when you add keys to `.env`.
+![Stock Deep Dive: candlestick chart with moving averages, score breakdown, and a decision with entry, target and stop](assets/hero.png)
+
+_Design mockup of the Stock Deep Dive page (illustrative numbers, not a live render)._
 
 ---
 
-## Engineering highlights
+## Method and limitations (read this first)
 
-- **Deterministic, testable core** — scoring, sizing and decisions are pure functions with
-  **80 offline tests**; no LLM in the critical path. Missing data stays `None`, never invented.
-- **Clean provider abstraction** — keyed sources, keyless Yahoo, and a deterministic mock all
-  sit behind one interface; a real symbol's missing field is never back-filled with a mock number.
-- **Always-on engine** with **state-based de-duplication** — you get *new* signals, not spam.
-- **Two asset classes, two models** — equities use a fundamentals composite; crypto uses a
-  separate trend / momentum / quality-tier model, **isolated so it can't distort equity math**.
-- **Hard safety guardrails** — a test fails the build if any source file contains
-  order-execution or credential-capture identifiers. Research-only, by construction.
+**1. Multi-factor score.** Each name gets seven 0–100 sub-scores: Quality, Growth,
+Momentum, Valuation, Catalyst, Risk and Liquidity. The composite is a weighted average,
+renormalised over whichever inputs are actually available (default weights in `config.yaml`:
+Quality 20, Growth 20, Momentum 20, Valuation 15, Catalyst 15, Risk 10; Liquidity acts as a
+gate). Missing data stays `None` and is never back-filled with mock values for a real symbol.
+
+**2. Backtests, and what they cannot tell you.**
+- Only the **momentum** rule is backtested. The history is also split into consecutive
+  sub-periods and the same fixed-parameter rule is re-run on each, a **time-split robustness
+  check**. Nothing is fitted in-sample, so this is a stability test, not walk-forward
+  optimisation. No transaction costs; execution at the same close.
+- **No fundamental backtest is implemented**, by design. Fundamental scores are single
+  snapshots, not point-in-time history, so any such backtest would be look-ahead biased.
+- The universe is today's list, so results carry **survivorship bias**. The UI says so next to
+  every result. Treat the output as a sanity check on the signal, not a track record.
+
+**3. Portfolio risk analytics** (`src/portfolio/intelligence.py`). Each asset needs at least
+120 days of price history; correlations, beta and the Monte Carlo use the trailing (up to 252)
+overlapping trading days, with a minimum of 60.
+- **Correlation clusters.** Holdings with pairwise correlation ≥ 0.70 (signed) are grouped as
+  connected components, single-linkage: A~B and B~C put A, B and C in one cluster.
+- **Effective number of bets** = 1 / (wᵀρw) with weights normalised to sum to 1. *Limitations:*
+  it uses correlation, not covariance, so it ignores volatility differences; and it is not
+  clipped, so negative correlations can push it above the number of holdings. A covariance- or
+  PCA-based measure would be stricter.
+- **Portfolio beta** against the S&P 500 (`^GSPC`). Same-day closes understate beta for
+  Swedish holdings, because the two markets close at different times.
+- **Bootstrap Monte Carlo**: 2,000 one-year paths resampled from the portfolio's joint daily
+  returns, seeded for reproducibility. *Limitation:* it inherits the sample period's regime,
+  so a strong year inflates the median, and the UI shows that caveat.
+
+**4. Market regime.** Index trend, momentum and a volatility ratio classify the tape as
+risk-on, neutral or risk-off. The BUY threshold is adjusted on a *copy* of the config, and the
+adjustment is always shown, never silent. It applies to Daily Opportunities and the engine;
+the single-stock Deep Dive uses the base thresholds.
+
+**5. Discipline checks.** Proposed actions are compared with the investor's own rules
+(averaging down on a loser, more proposed changes than the monthly trade budget, chasing overbought entries,
+selling high-quality names at the lows). The terminal warns and never blocks.
+
+**6. Accountability.** Engine BUY signals open virtual positions in a **paper ledger**, filled
+cost-free at the last quote. Positions close through stops or sell signals, which fire only for
+names the investor also holds, so closed-trade statistics cover that subset. An efficacy module
+scores past alerts by type once at least 3 can be scored, using the raw (not benchmark-relative)
+return from the signal date to the latest close, and reports "collecting history" until then.
 
 ---
 
 ## What it does
 
-- **Screens** Sweden / EU / US universes with liquidity, market-cap and penny filters.
-- **Scores** every name on Quality, Growth, Momentum, Valuation, Catalyst, Risk and
-  Liquidity, then combines them into a weighted **composite score** (weights editable in
-  `config.yaml`).
-- **Sizes** positions in **SEK with whole-share counts**, enforcing your risk limits
-  (max position %, high-risk cap, daily buy budget) and flagging liquidity/FX risk.
-- **Reviews your portfolio**: per-holding BUY/HOLD/TRIM/SELL, weakest holding, best
-  replacement, sector/country/currency exposure, concentration, stress tests.
-- **Writes decision memos** (deterministic — no LLM required) using ten institutional
-  lenses (Goldman, Morgan Stanley, McKinsey, BlackRock, Berkshire, Blackstone,
-  Citadel/Point72, Bridgewater, activist short-seller, CIO) plus bull/bear cases, an
-  opportunity-cost comparison and a **self-attack pre-mortem**.
-- **Cites sources**: every news item carries source name, timestamp and URL. Missing data
-  is shown as `—missing—`, never invented.
-- **Backtests** the momentum signal with walk-forward validation (with explicit
-  survivorship-bias warnings).
-- **Crypto sleeve** (kept entirely separate from equities — coins have no fundamentals):
-  a dedicated **trend / momentum / quality-tier / BTC-relative / risk** model, a discovery
-  screener, and thesis-aware signals on a tracked crypto account (keep the core, consolidate
-  the speculative tail into BTC, ignore dust) — isolated so it never distorts equity weights.
+- **Screens** Swedish, EU and US universes with liquidity, market-cap and penny-stock filters.
+- **Sizes** positions in SEK with whole-share counts under configurable risk limits (max
+  position %, high-risk cap, daily buy budget), flagging liquidity and FX risk.
+- **Reviews a portfolio**: per-holding decision, weakest holding, best replacement,
+  sector/country/currency exposure, concentration (HHI) and stress tests.
+- **Writes decision memos** deterministically (no LLM required): thesis, bull and bear cases,
+  an opportunity-cost comparison and a pre-mortem, alongside a plain-language summary that
+  only rephrases numbers the engine computed.
+- **Cites sources**: every news item carries source, timestamp and URL. Missing data is shown as
+  `—missing—`.
+- **Runs an always-on engine** that scans during market hours, de-duplicates signals against
+  stored state (only *new* transitions alert), and sends Telegram/email digests.
+- **Keeps crypto separate**: coins have no fundamentals, so they use their own trend, momentum
+  and risk model and never touch the equity composite.
 
 ---
 
-## Quickstart (works with no API keys)
+## Engineering notes
+
+- **Provider chain** per region (`config.yaml → data.providers`): keyed sources (Börsdata,
+  EODHD, Finnhub), then keyless Yahoo Finance, then OpenBB Platform (optional dependency), then
+  a deterministic mock. Within a record, missing fields stay `None` rather than borrowing mock
+  values; a symbol with no live data at all falls back to a fully synthetic record flagged as mock.
+- **Field mappings verified against live APIs.** Example: Yahoo's `dividendYield` is a
+  *percentage* while `trailingAnnualDividendYield` is a fraction. Mixing them once produced a
+  100x yield error, now covered by tests.
+- **Offline, deterministic test suite** (101 tests): network is gated off via `ALLOW_NETWORK`
+  in `conftest.py`, and random seeds are fixed.
+- **Every data-provider network call is logged** to `logs/network.jsonl` and shown in Settings.
+  The optional LLM step is off by default and is gated separately (`reports.use_llm`).
+
+---
+
+## Quickstart (no API keys needed)
 
 ```bash
-# 1. Clone / open the project
-cd avanza-research-terminal
-
-# 2. Create a virtual environment (Python 3.11+)
-python3 -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
-
-# 3. Install dependencies
+python3 -m venv .venv && source .venv/bin/activate   # Python 3.11+
 pip install -r requirements.txt
-
-# 4. (optional) create your .env — you can skip this and run on mock data
-cp .env.example .env
-
-# 5. Launch the dashboard
+cp .env.example .env            # optional; without keys it uses keyless Yahoo data
 streamlit run src/dashboard/app.py
 ```
 
-The dashboard opens at <http://localhost:8501>. The sidebar shows **🟡 MOCK** (no keys) or
-**🟢 LIVE** (keys present). On the **Portfolio Review** page click **Load sample portfolio**
-to see the full flow with the bundled `examples/sample_portfolio.csv`.
+The dashboard opens at <http://localhost:8501>. On **Portfolio Review**, click **Load sample
+portfolio** to see the full flow with `examples/sample_portfolio.csv`.
+
+Useful targets: `make test`, `make lint`, `make engine` (dry run of the always-on engine),
+`make letter` (preview the weekly plain-language letter). Set `ALLOW_NETWORK=false` for pure mock data.
 
 ---
 
-## 🟢 Always-on engine (live alerts) — the main event
-
-The dashboard is the read UI. The **engine** is the always-on part: a scheduled
-scanner that refreshes SE/EU/US data, detects *actionable transitions*, de-duplicates
-them against stored state (so you only get **new** signals, never spam), and **pushes
-Telegram + email alerts** plus a morning and post-close digest.
-
-**Signal types** → `NEW_BUY`, holding `TRIM`/`SELL` action changes, trailing **stop-loss**
-& cost-based **take-profit** hits, **big moves**, **breakouts** (new highs), **RSI** extremes,
-and **imminent earnings**. Each carries an action (BUY/TRIM/SELL/WATCH/REVIEW) and severity.
-
-**Schedule** (config in `config.yaml → engine`): intraday scan every ~20 min *during
-Stockholm/EU/US market hours*, a morning digest (08:15), and a post-close digest (22:15),
-all in `Europe/Stockholm`.
-
-### Run it
+## Always-on engine
 
 ```bash
-python -m src.engine.scheduler            # run forever (daemon)
-python -m src.engine.scheduler once       # one full scan + send (cron-style)
-python -m src.engine.scheduler intraday   # one intraday scan + send
-python -m src.engine.scheduler dry-run    # full scan, PRINT the message, send nothing
+python -m src.engine.scheduler            # run continuously (daemon)
+python -m src.engine.scheduler once       # one full scan + send
+python -m src.engine.scheduler dry-run    # full scan, print the message, send nothing
+                                          # (it still updates de-dup state and paper fills)
 ```
 
-`dry-run` is the best first check — it prints exactly what would be sent.
+Signal types: new BUY, holding TRIM/SELL changes, trailing stop and take-profit hits, big
+moves, breakouts, 200-day moving-average crosses, RSI extremes and imminent earnings. Schedule (in `config.yaml → engine`):
+intraday scans during Stockholm/EU/US hours plus morning and post-close digests
+(Europe/Stockholm).
 
-### Wire up notifications (you do this once)
+**Notifications:** create a Telegram bot via @BotFather and set `TELEGRAM_BOT_TOKEN` and
+`TELEGRAM_CHAT_ID` in `.env` (`python -m src.alerts.telegram` lists chat ids), or set the
+`ALERT_EMAIL_*` variables. No broker credentials are ever requested.
 
-**Telegram (recommended):** message **@BotFather** → `/newbot` → copy the token into
-`TELEGRAM_BOT_TOKEN` in `.env`. DM your new bot once, then find your chat id the easy way:
-
-```bash
-python -m src.alerts.telegram          # prints chats that messaged your bot
-python -m src.engine.scheduler test-alert   # send a test alert to verify
-```
-
-Put the id in `TELEGRAM_CHAT_ID`. (Or use the **Settings → Notifications** page: *Find my
-chat id* + *Send test alert* buttons.)
-
-**Email:** set `ALERT_EMAIL_SMTP_HOST/PORT/USERNAME/PASSWORD/ALERT_EMAIL_TO` in `.env`
-(for Gmail use an App Password). No broker credentials are ever requested or used.
-
-Choose channels in `config.yaml → engine.alerts.channels: [telegram, email]`.
-
-### Deploy 24/7 (so it runs when your Mac is off)
-
-**Docker Compose (local box / any VPS)** — runs the engine *and* dashboard, sharing one DB:
-
-```bash
-cp .env.example .env            # fill in Telegram/email keys
-docker compose up -d --build    # engine pushes alerts; dashboard at :8501
-```
-
-**Fly.io (managed, always-on worker)** — see `fly.toml`:
-
-```bash
-fly launch --no-deploy
-fly volumes create art_data --size 1 --region arn
-fly secrets set TELEGRAM_BOT_TOKEN=... TELEGRAM_CHAT_ID=...
-fly deploy
-```
-
-The **Alerts & Engine** dashboard page shows the live signal feed, engine health
-(last scan, status), and a **Run a scan now** button with a message preview.
+**Deploy:** `docker compose up -d --build` runs the engine and dashboard on one shared DB.
+`fly.toml` is included for an always-on Fly.io worker.
 
 ---
 
-## Enabling live data (optional)
+## Live data (optional)
 
-Copy `.env.example` to `.env` and fill in whichever keys you have. **All are optional.**
+| Variable | Purpose |
+|---|---|
+| `BORSDATA_API_KEY` | Nordic fundamentals and prices |
+| `EODHD_API_KEY`, `FINNHUB_API_KEY` | Global fundamentals, prices, news, earnings dates |
+| `FX_API_KEY` | Live FX; static rates are used whenever the live call fails |
+| `ANTHROPIC_API_KEY` | Optional LLM synthesis on top of the deterministic memo |
+| `TELEGRAM_*`, `ALERT_EMAIL_*` | Optional alerts |
+| `ALLOW_NETWORK` | `false` forces offline/mock data even with keys |
 
-| Variable | Purpose | Region |
-|---|---|---|
-| `BORSDATA_API_KEY` | Primary Nordic fundamentals, reports, prices | Sweden / Nordic |
-| `EODHD_API_KEY` | Global fundamentals, EOD prices, news | US / EU |
-| `FINNHUB_API_KEY` | Global quotes, metrics, news, earnings dates | US / EU |
-| `FX_API_KEY` | (optional) live USD/SEK, EUR/SEK — static fallback built in | FX |
-| `ANTHROPIC_API_KEY` | (optional) LLM memo narrative — deterministic memo works without it | — |
-| `TELEGRAM_*`, `ALERT_EMAIL_*` | (optional) alerts | — |
-| `ALLOW_NETWORK` | set `false` to force offline/mock even with keys | — |
-
-- With a key present, the relevant **real client activates behind a clean interface**. If a
-  call fails or a field is unavailable, that field stays **missing** (it is never back-filled
-  with mock numbers for a real symbol).
-- **Every outbound network call is logged** to `logs/network.jsonl` and shown on the
-  **Settings → Data freshness** panel. There are no hidden network calls.
-- **There is no Avanza key, and there never will be.** Do not put broker credentials in `.env`.
+Without keys, Yahoo Finance provides real prices and fundamentals keylessly. The optional LLM
+step is instructed to use only the deterministic memo, and any failure falls back to it.
 
 ---
 
-## Portfolio CSV format
-
-Create/maintain this file yourself (export your holdings from Avanza manually, then format
-as CSV — the app does **not** connect to Avanza):
+## Portfolio CSV
 
 ```csv
 ticker,exchange,shares,average_cost,currency,current_price_optional,sector,notes
@@ -189,76 +173,16 @@ VOLV-B,ST,40,245.0,SEK,,Industrials,Core Nordic industrial
 NVDA,US,8,95.0,USD,,Technology,AI infrastructure
 ```
 
-`current_price_optional` may be blank — prices are then fetched from the data layer.
-Exchanges: `ST` (Stockholm), `US`, `EU`.
+Holdings are entered manually (CSV import, paste, or the in-app editor). The app never
+connects to a broker.
 
 ---
 
 ## Dashboard pages
 
-**Apple-inspired dark theme** with real-button navigation and SF Pro typography. Pages:
-
-1. **Overview / Today** — glanceable home: market-open chips (SE/EU/US), engine status,
-   today's "what to do" (BUY/TRIM/SELL signals), latest-signal feed, holdings snapshot,
-   **live auto-refresh**.
-2. **Alerts & Engine** — live signal feed (filter by severity/type/symbol), engine health,
-   **run-a-scan-now** with message preview.
-3. **Daily Opportunities** — ranked BUY / WATCH / AVOID, filters, daily buy-budget tracker.
-4. **Crypto Signals** — a discovery screener plus thesis-aware signals on a tracked crypto
-   account: BTC-only-new-money rule, core vs. speculative-tail handling, concentration and
-   staking flags, dust suppression — all on a model separate from the equity thesis.
-5. **Portfolio Review** — per-holding decision, weakest holding, replacements, opportunity cost.
-6. **Stock Deep Dive** — full memo for any ticker (dark candlestick, score bars, clickable
-   news, add-to-watchlist, save memo).
-7. **Risk Dashboard** — country/currency/sector exposure, concentration (HHI), vol & drawdown
-   proxies, portfolio-weighted stress test.
-8. **Backtest** — momentum backtest + walk-forward, with survivorship-bias warnings.
-9. **Settings** — API status, **Notifications setup** (test-alert + chat-id finder), network
-   audit log, scoring weights, risk limits, watchlist editor.
-
----
-
-## Scoring & decisions (deterministic)
-
-Composite = weighted average of sub-scores (all 0–100, higher = better), renormalised over
-whatever data is available. Default weights (`config.yaml`):
-
-```
-Quality 20% · Growth 20% · Momentum 20% · Valuation 15% · Catalyst 15% · Risk 10%
-```
-Liquidity is scored separately and used as a gate/penalty.
-
-- **BUY** — composite ≥ threshold, acceptable R/R, momentum & valuation OK, liquid.
-- **WATCH** — good idea but entry/uncertainty not yet attractive.
-- **HOLD / TRIM / SELL** — for existing holdings (thesis intact / oversized or mediocre / broken).
-- **AVOID** — detached valuation, weak catalyst, poor liquidity, debt/dilution risk, or hype.
-- **Confidence** (High/Medium/Low) reflects data coverage, signal agreement, liquidity and R/R.
-  **Mock data never yields High confidence.**
-
-All thresholds and risk limits live in `config.yaml` and reload from **Settings**.
-
----
-
-## Optional: LLM memo narrative
-
-The deterministic engine produces the **complete** memo with no LLM. If you set
-`reports.use_llm: true` in `config.yaml` **and** provide `ANTHROPIC_API_KEY`, an isolated
-module prepends a short synthesis. It is instructed to use only the deterministic memo and
-**never invent data**; any failure silently falls back to the deterministic memo. The Claude
-Max subscription does not power this — it needs an API key, and the system is fully usable
-without it.
-
----
-
-## Tests
-
-```bash
-pytest -q
-```
-
-Tests run **fully offline** (network is disabled in `conftest.py`) and cover scoring, sizing,
-portfolio analytics, reports, backtest, schemas, and the **broker-automation guardrails**
-(a test fails if any source file contains order-execution or credential-capture terms).
+Overview · Alerts & Engine · Daily Opportunities · Crypto Signals · Portfolio Review ·
+Intelligence (risk analytics, regime, discipline, paper ledger) · Stock Deep Dive ·
+Risk Dashboard · Backtest · Settings
 
 ---
 
@@ -267,46 +191,29 @@ portfolio analytics, reports, backtest, schemas, and the **broker-automation gua
 ```
 src/
   config.py            # config.yaml + .env loader
-  data/                # provider interface, mock engine, Börsdata/EODHD/Finnhub, FX, news
-  universe/            # Sweden / EU / US lists + liquidity filters
+  data/                # provider chain: keyed clients, Yahoo, OpenBB, mock, FX, news
+  universe/            # Sweden / EU / US / crypto lists + liquidity filters
   models/schemas.py    # Pydantic schemas (missing = None, never invented)
-  scoring/             # fundamentals, technicals, catalysts, risk, composite
-  portfolio/           # CSV import, SEK whole-share sizing, opportunity cost
-  reports/             # citation manager, templates, memo generator (+ optional LLM)
-  backtest/            # momentum backtest + walk-forward
-  alerts/              # optional Telegram / email
-  dashboard/           # Streamlit app (app.py + pages)
-  storage/             # SQLite cache, watchlist, portfolio, memo history
-  utils/               # logging (network audit), dates, currency
-tests/                 # pytest suite (offline)
+  scoring/             # fundamentals, technicals, catalysts, risk, composite, regime
+  portfolio/           # sizing, opportunity cost, risk intelligence, discipline, paper ledger
+  reports/             # memo generator, citations, plain-language layer (+ optional LLM)
+  backtest/            # momentum backtest, time-split robustness check, alert efficacy
+  engine/              # scheduler, scanner, signal de-dup, notifications
+  alerts/              # Telegram and email senders
+  dashboard/           # Streamlit app and pages
+  storage/             # SQLite cache, migrations, backups
+  utils/               # currency, dates, network-call logging
+tests/                 # offline pytest suite
 ```
-
----
-
-## Limitations & honesty
-
-- Mock data is **synthetic** and for UI/demo only — clearly flagged everywhere.
-- Backtest is **technical/momentum only** (fundamentals are not point-in-time) and the
-  universe is **survivorship-biased**. Treat it as a signal sanity check, not a track record.
-- Real provider field mappings are conservative; verify against your live API responses.
-- Data may be delayed. **Always verify before acting. You place all orders manually.**
-
-**This is not personal financial advice.**
 
 ---
 
 ## Roadmap
 
-- **Phase 1 ✅** — structure, config/db/schemas/logging, Börsdata + global client, CSV import,
-  deterministic scoring, dashboard (Opportunities + Deep Dive).
-- **Phase 2 ✅** — news/catalysts, citations, memo generator, Portfolio Review + Risk, alerts.
-- **Phase 3 ✅ (initial)** — backtest + walk-forward, EU/US expansion, richer technicals,
-  optional LLM memo.
-- **Phase 4 ✅** — keyless live data (Yahoo), and the **always-on engine**: scheduled
-  SE/EU/US scanner, state-based signal de-dup, Telegram + email alerts, morning/close
-  digests, Alerts dashboard page, and Docker/Fly deploy.
-- **Phase 5 ✅** — **crypto sleeve** (separate scoring model + discovery + holding signals),
-  an **Apple-inspired UI** (real-button navigation, SF Pro typography), portfolio **pulse**
-  alerts, and **automatic rotating SQLite backups** on every save.
-- **Next** — point-in-time fundamentals, market-holiday calendar, per-signal config in the
-  UI, optional intraday-interval prices, FastAPI backend.
+- Point-in-time fundamentals, so fundamental factors can be backtested without look-ahead bias.
+- Survivorship-free universe snapshots.
+- Covariance/PCA-based effective number of bets alongside the correlation version.
+- Paper-only exits and benchmark-relative efficacy scoring.
+- Market-holiday calendar and per-signal configuration in the UI.
+
+**This is not personal financial advice.** Data may be delayed; always verify before acting.

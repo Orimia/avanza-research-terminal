@@ -7,7 +7,7 @@ from __future__ import annotations
 import contextlib
 import sqlite3
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 6
 
 _STATEMENTS = [
     """
@@ -105,6 +105,42 @@ _STATEMENTS = [
         staked_pct     REAL,
         updated_at     TEXT NOT NULL
     );
+    """,
+    # -- V4: daily portfolio-vs-index snapshots ("am I beating the index?").
+    #    One row per day, written by the engine; honest by construction — the
+    #    comparison starts the day tracking starts, no back-filled history. ----
+    """
+    CREATE TABLE IF NOT EXISTS portfolio_snapshots (
+        day        TEXT PRIMARY KEY,       -- YYYY-MM-DD
+        value_sek  REAL NOT NULL,
+        spx        REAL,                    -- S&P 500 close
+        omx        REAL,                    -- OMXS30 close
+        created_at TEXT NOT NULL
+    );
+    """,
+    # -- V2: paper-trading ledger (the terminal's own accountable track record;
+    #    virtual fills of engine signals — NEVER real orders) ------------------
+    """
+    CREATE TABLE IF NOT EXISTS paper_ledger (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        opened_at   TEXT NOT NULL,
+        symbol      TEXT NOT NULL,          -- ticker.exchange
+        qty         REAL NOT NULL,
+        entry_price REAL NOT NULL,          -- local currency
+        currency    TEXT NOT NULL,
+        fx_to_sek   REAL NOT NULL,
+        entry_sek   REAL NOT NULL,
+        source      TEXT,                   -- signal type that opened it
+        status      TEXT NOT NULL DEFAULT 'open',
+        closed_at   TEXT,
+        exit_price  REAL,
+        exit_sek    REAL,
+        pnl_sek     REAL,
+        note        TEXT
+    );
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_paper_symbol ON paper_ledger(symbol, status);
     """,
     """
     CREATE TABLE IF NOT EXISTS memos (

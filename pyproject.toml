@@ -26,6 +26,7 @@ dependencies = [
 
 [project.optional-dependencies]
 llm = ["anthropic>=0.40"]       # optional LLM memo narrative
+openbb = ["openbb>=4.3"]        # optional multi-source data aggregation (heavy)
 dev = ["pytest>=8.0", "ruff>=0.6"]
 
 [tool.setuptools.packages.find]

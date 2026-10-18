@@ -54,7 +54,7 @@ def _holdings_view() -> None:
         return
     sigs = ui.unpack_crypto(data["signals"])
     if data["any_mock"]:
-        st.warning("⚠️ Some coins are on MOCK data (offline / unavailable) — demo values only.")
+        st.warning("Some coins are on MOCK data (offline / unavailable) — demo values only.")
 
     btc_w = next((s.weight_pct for s in sigs if s.symbol == "BTC"), 0) or 0
     core_w = sum(s.weight_pct or 0 for s in sigs if "core" in s.flags)
@@ -86,7 +86,7 @@ def _holding_card(s: CryptoSignal, todo: bool) -> None:
         top = st.columns([3, 1, 1])
         top[0].markdown(
             f"<span style='font-size:1.18rem;font-weight:800'>{s.symbol}</span> "
-            f"<span style='color:#8b98a9'>· {s.display_name}</span> &nbsp; {ui.tier_chip(s.tier)}<br>"
+            f"<span style='color:#6e6e73'>· {s.display_name}</span> &nbsp; {ui.tier_chip(s.tier)}<br>"
             f"{ui.crypto_badge(s.action.value, s.label)} &nbsp; "
             f"{ui.crypto_flag_pills(s.flags, s.staked_pct)}",
             unsafe_allow_html=True)
@@ -97,7 +97,7 @@ def _holding_card(s: CryptoSignal, todo: bool) -> None:
             f"<div style='background:{color}14;border:0.5px solid {color}55;border-radius:12px;"
             f"padding:8px 13px;margin:4px 0'><b>{s.trade_note}</b></div>",
             unsafe_allow_html=True)
-        st.markdown(f"<span style='color:#c4cdd9'>{s.headline}</span>", unsafe_allow_html=True)
+        st.markdown(f"<span style='color:#3a3a3c'>{s.headline}</span>", unsafe_allow_html=True)
         st.caption(s.rationale)
         st.caption(f"Risk · {s.biggest_risk}")
 
@@ -145,13 +145,13 @@ def _discovery_view(cfg) -> None:
 def _disc_card(s: CryptoSignal) -> None:
     with st.container(border=True):
         c = st.columns([3, 1])
-        own = " <span style='color:#4aa8ff;font-size:0.75rem'>· you own this</span>" if s.is_holding else ""
+        own = " <span style='color:#0066cc;font-size:0.75rem'>· you own this</span>" if s.is_holding else ""
         c[0].markdown(
             f"<span style='font-size:1.15rem;font-weight:800'>{s.symbol}</span> "
-            f"<span style='color:#8b98a9'>· {s.display_name}</span>{own} &nbsp; {ui.tier_chip(s.tier)}<br>"
+            f"<span style='color:#6e6e73'>· {s.display_name}</span>{own} &nbsp; {ui.tier_chip(s.tier)}<br>"
             f"{ui.crypto_badge(s.action.value, s.label)}", unsafe_allow_html=True)
         c[1].metric("Score", f"{s.composite:.0f}")
-        st.markdown(f"<span style='color:#c4cdd9'>{s.headline}</span>", unsafe_allow_html=True)
+        st.markdown(f"<span style='color:#3a3a3c'>{s.headline}</span>", unsafe_allow_html=True)
         st.caption(s.rationale)
 
 
@@ -190,7 +190,7 @@ def _editor_view() -> None:
         ui.clear_crypto_cache()
         st.success("Saved.")
         st.rerun()
-    if c2.button("Reset to my Coinbase snapshot"):
+    if c2.button("Reset to example holdings"):
         get_db().crypto_holdings_replace(default_coinbase_holdings())
         ui.clear_crypto_cache()
         st.rerun()

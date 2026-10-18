@@ -34,10 +34,14 @@ data:
   # may be merged for coverage). 'yahoo' is the keyless real source (yfinance)
   # used when no paid key is set; 'mock' is the final offline fallback.
   providers:
-    nordic: [borsdata, yahoo, mock]
-    eu: [eodhd, finnhub, yahoo, mock]
-    us: [eodhd, finnhub, yahoo, mock]
-    crypto: [yahoo, mock]            # coins are keyless via Yahoo (<SYM>-USD)
+    # 'openbb' (OpenBB Platform) = multi-source aggregation: keyless via its
+    # bundled yfinance source, auto-upgrades if you add keys via OpenBB's own
+    # credential store. Sits after yahoo as redundancy + coverage merge; the
+    # chain skips it gracefully if the package isn't installed.
+    nordic: [borsdata, yahoo, openbb, mock]
+    eu: [eodhd, finnhub, yahoo, openbb, mock]
+    us: [eodhd, finnhub, yahoo, openbb, mock]
+    crypto: [yahoo, openbb, mock]    # coins are keyless via Yahoo (<SYM>-USD)
   fx:
     pairs: [USDSEK, EURSEK, DKKSEK, NOKSEK, GBPSEK, CHFSEK]
     # Static fallback rates used when no live FX is available (approximate;
@@ -96,6 +100,28 @@ risk:
   default_take_profit_pct: 0.25
   # liquidity warning: flag if target SEK > this fraction of avg daily turnover
   position_vs_adv_warn: 0.10
+
+# ---- V2: personal investor profile (drives the discipline engine) ----------
+# These encode YOUR rules so the terminal argues with you when a proposed action
+# matches a known failure mode (churn, averaging down, FOMO entries, dumping
+# quality at the lows). Research only — it warns, it never blocks or trades.
+profile:
+  max_trades_per_month: 6          # churn budget — more than this = overtrading
+  min_holding_days: 30             # think in months, not days
+  allow_averaging_down: false      # adding to a >10% loser needs a NEW thesis
+  fomo_rsi: 75                     # entries above this RSI are chasing
+  sell_quality_floor: 65           # quality-score floor: don't dump quality at the lows
+  paper_trading: true              # record engine signals as PAPER fills (track record)
+
+# ---- V2: market-regime engine (adaptive thresholds) -------------------------
+# Classifies the tape from index trend/momentum/volatility and adapts the BUY
+# bar: harder in risk-off, slightly easier in risk-on. Always shown, never silent.
+regime:
+  enabled: true
+  adapt_thresholds: true
+  benchmarks: ["^GSPC", "^OMX"]    # S&P 500 + OMX Stockholm 30 (keyless via Yahoo)
+  risk_off_buy_bump: 6             # buy_min_composite += this in risk-off
+  risk_on_buy_relief: 2            # buy_min_composite -= this in risk-on
 
 # Crypto sleeve (separate from equities — coins have NO fundamentals, so they
 # use a dedicated trend/momentum/quality-tier model, never the stock composite).

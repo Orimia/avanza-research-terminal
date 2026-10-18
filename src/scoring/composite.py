@@ -183,6 +183,7 @@ def build_recommendation(data: StockData, fx: dict[str, float], *,
     one_liner = f"{action.value} — {name}: {main_reason}."
     return Recommendation(
         ticker=data.ticker, exchange=data.exchange, name=name,
+        description=data.description,
         action=action, confidence=conf, one_liner=one_liner,
         main_reason=main_reason, biggest_risk=biggest_risk,
         score=a.breakdown, technicals=a.technicals, risk_reward=a.risk_reward,

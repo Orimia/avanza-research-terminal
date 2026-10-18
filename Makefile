@@ -1,4 +1,4 @@
-.PHONY: install dev lint test run engine
+.PHONY: install dev lint test run engine letter
 
 install:          ## Install runtime dependencies
 	pip install -r requirements.txt
@@ -17,3 +17,6 @@ run:              ## Launch the Streamlit dashboard
 
 engine:           ## Dry-run the always-on engine (prints what it would send)
 	python -m src.engine.scheduler dry-run
+
+letter:           ## Preview the weekly plain-language letter (dry run)
+	ALLOW_NETWORK=true python -m src.engine.scheduler letter-dry

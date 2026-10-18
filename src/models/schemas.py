@@ -145,6 +145,7 @@ class StockData(BaseModel):
     name: Optional[str] = None
     sector: Optional[str] = None
     country: Optional[str] = None
+    description: Optional[str] = None      # what the company does (plain language)
     currency: str = "SEK"
     quote: Optional[Quote] = None
     fundamentals: Optional[Fundamentals] = None
@@ -241,6 +242,7 @@ class Recommendation(BaseModel):
     ticker: str
     exchange: str
     name: Optional[str] = None
+    description: Optional[str] = None      # company brief for plain-language display
     action: Action
     confidence: Confidence
     one_liner: str

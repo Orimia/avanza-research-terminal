@@ -43,17 +43,17 @@ def test_52w_range_computed():
     assert t.pct_in_range is not None and t.pct_in_range > 0.99   # at the high
 
 
-# --- single-name ceiling (the GOOG contradiction) ------------------------ #
+# --- single-name ceiling (holding under the 25% cap) --------------------- #
 def test_single_name_ceiling_not_buy_size():
     cfg = get_config()  # max_single_position_pct = 0.25
     b = ScoreBreakdown(composite=70, momentum=67, quality=91)
-    # 21.7% is over the old 8% but UNDER the 25% ceiling -> HOLD, not TRIM
-    action, _ = decide_holding(None, b, weight_pct=21.7, unrealized_pct=0.1, cfg=cfg,
-                               kind="stock", analyst_upside=0.17)
+    # 20% is over the old 8% but UNDER the 25% ceiling -> HOLD, not TRIM
+    action, _ = decide_holding(None, b, weight_pct=20.0, unrealized_pct=0.1, cfg=cfg,
+                               kind="stock", analyst_upside=0.10)
     assert action == Action.HOLD
     # 30% exceeds the ceiling -> TRIM
     action2, _ = decide_holding(None, b, weight_pct=30.0, unrealized_pct=0.1, cfg=cfg,
-                                kind="stock", analyst_upside=0.17)
+                                kind="stock", analyst_upside=0.10)
     assert action2 == Action.TRIM
 
 

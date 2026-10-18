@@ -39,3 +39,16 @@ env/
 .DS_Store
 .idea/
 .vscode/
+.gstack/
+
+# Never publish local runtime state (added for the public showcase)
+logs/
+*.db
+*.sqlite
+*.sqlite3
+backups/
+deploy/launchd/
+*.plist
+.claude/
+.claude-flow/
+.gstack/

@@ -221,6 +221,68 @@ class Database:
         rows = self.scan_runs_recent(1)
         return rows[0] if rows else None
 
+    # -- V4: daily portfolio-vs-index snapshots -----------------------------
+    def snapshot_upsert(self, day: str, value_sek: float,
+                        spx: float | None, omx: float | None) -> None:
+        self.conn.execute(
+            "INSERT INTO portfolio_snapshots(day, value_sek, spx, omx, created_at) "
+            "VALUES(?,?,?,?,?) ON CONFLICT(day) DO UPDATE SET "
+            "value_sek=excluded.value_sek, spx=excluded.spx, omx=excluded.omx",
+            (day, value_sek, spx, omx, _utcnow()),
+        )
+        self.conn.commit()
+
+    def snapshots(self, limit: int = 120) -> list[dict]:
+        rows = self.conn.execute(
+            "SELECT day, value_sek, spx, omx FROM portfolio_snapshots "
+            "ORDER BY day DESC LIMIT ?", (limit,)
+        ).fetchall()
+        return [dict(r) for r in reversed(rows)]
+
+    # -- V2: paper-trading ledger (virtual fills — never real orders) ------
+    def paper_open(self, *, symbol: str, qty: float, entry_price: float,
+                   currency: str, fx_to_sek: float, source: str, note: str = "") -> int:
+        cur = self.conn.execute(
+            "INSERT INTO paper_ledger(opened_at, symbol, qty, entry_price, currency, "
+            "fx_to_sek, entry_sek, source, status, note) VALUES(?,?,?,?,?,?,?,?, 'open', ?)",
+            (_utcnow(), symbol, qty, entry_price, currency, fx_to_sek,
+             qty * entry_price * fx_to_sek, source, note),
+        )
+        self.conn.commit()
+        return int(cur.lastrowid)
+
+    def paper_find_open(self, symbol: str) -> Optional[dict]:
+        row = self.conn.execute(
+            "SELECT * FROM paper_ledger WHERE symbol=? AND status='open' "
+            "ORDER BY id DESC LIMIT 1", (symbol,)
+        ).fetchone()
+        return dict(row) if row else None
+
+    def paper_close(self, ledger_id: int, *, exit_price: float, fx_to_sek: float,
+                    note: str = "") -> None:
+        row = self.conn.execute(
+            "SELECT qty, entry_sek FROM paper_ledger WHERE id=?", (ledger_id,)
+        ).fetchone()
+        if not row:
+            return
+        exit_sek = row["qty"] * exit_price * fx_to_sek
+        self.conn.execute(
+            "UPDATE paper_ledger SET status='closed', closed_at=?, exit_price=?, "
+            "exit_sek=?, pnl_sek=?, note=COALESCE(NULLIF(note,''),'') || ? WHERE id=?",
+            (_utcnow(), exit_price, exit_sek, exit_sek - row["entry_sek"],
+             (" | " + note) if note else "", ledger_id),
+        )
+        self.conn.commit()
+
+    def paper_positions(self, status: str | None = None) -> list[dict]:
+        q = "SELECT * FROM paper_ledger"
+        args: tuple = ()
+        if status:
+            q += " WHERE status=?"
+            args = (status,)
+        rows = self.conn.execute(q + " ORDER BY id DESC", args).fetchall()
+        return [dict(r) for r in rows]
+
     # -- backups -----------------------------------------------------------
     def backup(self, *, keep: int = 10, reason: str = "auto") -> Optional[Path]:
         """Consistent online SQLite backup to ``data/backups/``, rotating to the

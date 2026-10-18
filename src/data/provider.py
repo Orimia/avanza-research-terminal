@@ -18,6 +18,7 @@ from src.data.borsdata_client import BorsdataClient
 from src.data.eodhd_client import EodhdClient
 from src.data.finnhub_client import FinnhubClient
 from src.data.mock_provider import mock_provider
+from src.data.openbb_client import OpenBBClient
 from src.data.yahoo_client import YahooClient, download_prices
 from src.models.schemas import StockData
 from src.storage.db import get_db
@@ -30,6 +31,7 @@ _REAL: dict[str, DataProvider] = {
     "eodhd": EodhdClient(),
     "finnhub": FinnhubClient(),
     "yahoo": YahooClient(),
+    "openbb": OpenBBClient(),
 }
 
 
@@ -78,6 +80,14 @@ def _fetch_uncached(ticker: str, exchange: str, *, enrich_news: bool = True) -> 
                 from src.data.news_client import company_rss
 
                 data.news = company_rss(ticker)
+                data.coverage.news = bool(data.news)
+            except Exception:  # pragma: no cover
+                pass
+        if enrich_news and not data.news:   # RSS empty -> try OpenBB (keyless)
+            try:
+                from src.data.openbb_client import company_news
+
+                data.news = company_news(ticker, exchange)
                 data.coverage.news = bool(data.news)
             except Exception:  # pragma: no cover
                 pass

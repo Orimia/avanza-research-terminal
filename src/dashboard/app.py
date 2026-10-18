@@ -22,6 +22,7 @@ from src.config import get_config  # noqa: E402
 from src.dashboard.ui import inject_css  # noqa: E402
 from src.dashboard.views_alerts import page_alerts  # noqa: E402
 from src.dashboard.views_crypto import page_crypto  # noqa: E402
+from src.dashboard.views_intel import page_intel  # noqa: E402
 from src.dashboard.views_overview import page_overview  # noqa: E402
 from src.dashboard.views_portfolio import page_portfolio, page_risk, page_settings  # noqa: E402
 from src.dashboard.views_screen import (  # noqa: E402
@@ -37,6 +38,7 @@ PAGES = {
     "Daily Opportunities": page_opportunities,
     "Crypto Signals": page_crypto,
     "Portfolio Review": page_portfolio,
+    "Intelligence": page_intel,
     "Stock Deep Dive": page_deep_dive,
     "Risk Dashboard": page_risk,
     "Backtest": page_backtest,
@@ -46,17 +48,17 @@ def _status() -> tuple[str, str]:
     """(dot colour, label) for the data-source status line."""
     cfg = get_config()
     if cfg.get("data.force_mock", False) or not cfg.allow_network:
-        return "#ff9f0a", "Mock mode (offline)"
+        return "#b25000", "Mock mode (offline)"
     if any(cfg.has_key(k) for k in ("BORSDATA_API_KEY", "EODHD_API_KEY", "FINNHUB_API_KEY")):
-        return "#30d158", "Live data — API keys"
+        return "#248a3d", "Live data — API keys"
     try:
         from src.data.yahoo_client import YahooClient
 
         if YahooClient().available():
-            return "#30d158", "Live data — Yahoo Finance"
+            return "#248a3d", "Live data — Yahoo Finance"
     except Exception:
         pass
-    return "#ff9f0a", "Mock data (no source)"
+    return "#b25000", "Mock data (no source)"
 
 
 def main() -> None:
@@ -75,7 +77,12 @@ def main() -> None:
     # navigation (e.g. "open deep dive") elsewhere in the app.
     with st.sidebar:
         st.markdown(
-            "<div class='brand'><div class='brand-mark'></div>"
+            "<div class='brand'><div class='brand-mark'>"
+            "<svg width='16' height='16' viewBox='0 0 24 24' fill='none'>"
+            "<path d='M3 17L9.5 10.5L13.5 14.5L21 7' stroke='#ffffff' stroke-width='2.6' "
+            "stroke-linecap='round' stroke-linejoin='round'/>"
+            "<path d='M14.5 7H21V13.5' stroke='#ffffff' stroke-width='2.6' "
+            "stroke-linecap='round' stroke-linejoin='round'/></svg></div>"
             "<div><div class='brand-title'>Research Terminal</div>"
             "<div class='brand-sub'>Screen · Score · Decide</div></div></div>",
             unsafe_allow_html=True)
@@ -91,6 +98,9 @@ def main() -> None:
                 st.session_state["page"] = p
                 st.rerun()
         st.markdown("<div class='nav-sep'></div>", unsafe_allow_html=True)
+        st.toggle("Simple mode", key="simple_mode",
+                  help="Plain-language essentials only: what to buy or sell and why, "
+                       "without the quant tables.")
         st.markdown(
             "<div class='side-foot'>No broker login · no orders · whole shares only<br>"
             f"<span class='side-disc'>{get_config().disclaimer}</span></div>",

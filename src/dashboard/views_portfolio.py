@@ -65,10 +65,10 @@ def _save(holdings: list) -> None:
 
 def _holdings_manager() -> list:
     holdings = _ensure_holdings()
-    with st.expander("📥 Manage holdings — import Avanza CSV · paste · edit",
+    with st.expander("Manage holdings — import Avanza CSV · paste · edit",
                      expanded=not holdings):
         t_edit, t_file, t_paste, t_sample = st.tabs(
-            ["✏️ Editor", "📄 Import file", "📋 Paste", "🧪 Sample"])
+            ["Editor", "Import file", "Paste", "Sample"])
         with t_edit:
             st.caption("Add/edit rows directly (exchange: ST / US / EU / CO / OL), then Save. "
                        "This is your live holdings — analysis updates from here.")
@@ -112,6 +112,11 @@ def _holdings_manager() -> list:
     return _ensure_holdings()
 
 
+def _plan_h(text: str, color: str) -> None:
+    st.markdown(f"<div class='panel-h'><span style='color:{color}'>{text}</span></div>",
+                unsafe_allow_html=True)
+
+
 def _action_plan(review, repl: list) -> None:
     st.subheader("Action plan — add / cut / replace")
     adds = [h for h in review.holdings if h.action.value == "BUY"]
@@ -119,7 +124,7 @@ def _action_plan(review, repl: list) -> None:
     weakest = review.weakest()
     cols = st.columns(3)
     with cols[0]:
-        st.markdown("##### 🟢 ADD")
+        _plan_h("Add", ui.GREEN)
         for h in adds:
             st.markdown(f"- **{h.holding.ticker.upper()}** → {h.trade_note}")
         for r in repl[:3]:
@@ -130,16 +135,16 @@ def _action_plan(review, repl: list) -> None:
         if not adds and not repl:
             st.caption("Nothing compelling to add right now.")
     with cols[1]:
-        st.markdown("##### 🔴 CUT")
+        _plan_h("Cut", ui.RED)
         if cuts:
             for h in cuts:
                 st.markdown(f"- **{h.holding.ticker.upper()}** → **{h.trade_note}**  \n"
-                            f"<span style='color:#8b98a9;font-size:0.8rem'>{h.rationale[:64]}</span>",
+                            f"<span style='color:#6e6e73;font-size:0.8rem'>{h.rationale[:64]}</span>",
                             unsafe_allow_html=True)
         else:
             st.caption("No cuts — all holdings rated HOLD/BUY.")
     with cols[2]:
-        st.markdown("##### 🔁 REPLACE")
+        _plan_h("Replace", ui.AMBER)
         if weakest and repl and repl[0].score.composite > (weakest.score.composite + 8):
             st.markdown(f"- Swap weakest **{weakest.holding.ticker.upper()}** "
                         f"({weakest.score.composite:.0f}) → **{repl[0].ticker.upper()}** "
@@ -181,6 +186,21 @@ def page_portfolio() -> None:
     m[3].metric("Holdings", len(review.holdings))
 
     _action_plan(review, repl)
+
+    # V2: exact manual order tickets for every actionable holding
+    from src.portfolio import tickets as _tickets
+    tks = [t for t in (_tickets.from_holding(h) for h in review.holdings) if t]
+    if tks:
+        with st.expander(f"Order tickets — manual execution ({len(tks)})"):
+            st.caption("The exact order to place yourself in Avanza. "
+                       "This tool never logs in and never trades.")
+            for t in tks:
+                st.code(_tickets.format_ticket(t), language="text")
+
+    if ui.is_simple():
+        st.caption("Simple mode — the action plan above is everything you need. "
+                   "Flip it off for the full per-holding table and risk detail.")
+        return
 
     st.subheader("Per-holding decisions — with exact trade")
     df = pd.DataFrame([{
@@ -255,8 +275,8 @@ def _portfolio_stress(review, fx) -> pd.DataFrame:
             if scen == "USD/SEK swing":
                 s = -2 if h.holding.currency == "USD" else (-1 if h.holding.currency != "SEK" else 0)
             score += w * s
-        label = ("🟢 Net resilient" if score > 0.3 else "🔴 Net exposed" if score < -0.6
-                 else "🟠 Moderate" if score < -0.2 else "🟡 Neutral")
+        label = ("Net resilient" if score > 0.3 else "Net exposed" if score < -0.6
+                 else "Moderate" if score < -0.2 else "Neutral")
         rows.append({"Scenario": scen, "Weighted sensitivity": round(score, 2), "Read": label})
     return pd.DataFrame(rows)
 
@@ -275,7 +295,7 @@ def page_settings() -> None:
         "TELEGRAM_BOT_TOKEN": "Telegram (optional)",
     }
     st.dataframe(pd.DataFrame([
-        {"Provider": label, "Configured": "✅" if cfg.has_key(env) else "— (mock/none)"}
+        {"Provider": label, "Configured": "Yes" if cfg.has_key(env) else "— (mock/none)"}
         for env, label in keys.items()
     ]), width="stretch", hide_index=True)
     st.caption(f"Network allowed: **{cfg.allow_network}** · force_mock: "
